@@ -5,8 +5,10 @@ import {
   ArrowLeftRight,
   BarChart2,
   Bell,
+  Building2,
   Calendar,
   CheckCircle2,
+  ClipboardList,
   FlaskConical,
   LayoutDashboard,
   LogOut,
@@ -64,8 +66,21 @@ const NAV_ITEMS = [
   { to: "/bulk-upload", icon: Upload, label: "Bulk Upload" },
   { to: "/transfers", icon: ArrowLeftRight, label: "Transfers" },
   { to: "/analytics", icon: BarChart2, label: "Analytics" },
-  { to: "/staff", icon: UserCog, label: "Staff Management" },
   { to: "/audit", icon: Shield, label: "Audit Log" },
+] as const
+
+// System Settings sub-nav (Hospital Admin)
+const SETTINGS_NAV_ITEMS = [
+  { to: "/staff", icon: UserCog, label: "Staff Management" },
+  { to: "/staff/roles", icon: Shield, label: "Role Management" },
+  { to: "/settings/facility", icon: Settings, label: "Facility Settings" },
+] as const
+
+const SUPER_ADMIN_NAV_ITEMS = [
+  { to: "/super-admin/dashboard", icon: LayoutDashboard, label: "Dashboard" },
+  { to: "/super-admin/registrations", icon: ClipboardList, label: "Hospital Registrations" },
+  { to: "/super-admin/hospitals", icon: Building2, label: "All Hospitals" },
+  { to: "/super-admin/settings", icon: Settings, label: "System Settings" },
 ] as const
 
 // ── Notification icon ────────────────────────────────────────
@@ -217,13 +232,13 @@ function Topbar({ user, unreadCount, onBellClick }: TopbarProps) {
   const isDark = theme === "dark"
 
   return (
-    <header className="fixed left-0 right-0 top-0 z-50 flex h-14 items-center justify-between border-b border-border bg-card px-4">
+    <header className="fixed left-0 right-0 top-0 z-50 flex h-16 items-center justify-between border-b border-border bg-card px-4">
       {/* Left — Logo */}
       <Link to="/dashboard" className="flex shrink-0 items-center gap-2">
         <div className="flex size-7 items-center justify-center rounded-md bg-primary">
           <div className="size-3.5 rounded-sm bg-primary-foreground/90" />
         </div>
-        <span className="text-base font-semibold text-foreground">HealthCore HIS</span>
+        <span className="text-base font-semibold text-foreground">HIS</span>
       </Link>
 
       {/* Right */}
@@ -300,33 +315,51 @@ function Topbar({ user, unreadCount, onBellClick }: TopbarProps) {
 
 // ── Sidebar ──────────────────────────────────────────────────
 
-function Sidebar({ user }: { user: AppUser }) {
+interface SidebarProps {
+  user: AppUser
+  navVariant?: "hospital" | "super-admin"
+}
+
+function Sidebar({ user, navVariant = "hospital" }: SidebarProps) {
   const navigate = useNavigate()
+  const isSuper = navVariant === "super-admin"
+  const items = isSuper ? SUPER_ADMIN_NAV_ITEMS : NAV_ITEMS
 
   return (
-    <aside className="fixed left-0 top-14 bottom-0 z-40 flex w-52 flex-col border-r border-border bg-card">
-      {/* Admin Portal header */}
-      <div className="shrink-0 border-b border-border px-4 py-3">
-        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Admin Portal</p>
-        <p className="mt-0.5 text-xs text-muted-foreground truncate">{user.hospital ?? "Central Hospital South"}</p>
-      </div>
+    <aside className="fixed left-0 top-16 bottom-0 z-40 flex w-60 flex-col border-r border-border bg-card">
+      {isSuper ? (
+        /* Super Admin — portal label */
+        <div className="shrink-0 border-b border-border px-4 py-3">
+          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Super Admin</p>
+          <p className="mt-0.5 text-xs text-muted-foreground">Platform Administration</p>
+        </div>
+      ) : (
+        <>
+          {/* Hospital Admin Portal header */}
+          <div className="shrink-0 border-b border-border px-4 py-3">
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Admin Portal</p>
+            <p className="mt-0.5 text-xs text-muted-foreground truncate">{user.hospital ?? "Central Hospital"}</p>
+          </div>
 
-      {/* New Admission CTA */}
-      <div className="shrink-0 px-3 pt-3 pb-2">
-        <Button
-          size="sm"
-          className="w-full gap-1.5 bg-primary text-primary-foreground hover:bg-primary/90 text-xs font-medium"
-          onClick={() => navigate("/patients/new")}
-        >
-          <Plus size={14} />
-          New Admission
-        </Button>
-      </div>
+          {/* New Admission CTA */}
+          <div className="shrink-0 px-3 pt-3 pb-2">
+            <Button
+              type="button"
+              size="sm"
+              className="w-full gap-1.5 bg-primary text-primary-foreground hover:bg-primary/90 text-xs font-medium"
+              onClick={() => navigate("/patients/new")}
+            >
+              <Plus size={14} />
+              New Admission
+            </Button>
+          </div>
+        </>
+      )}
 
       {/* Navigation */}
-      <ScrollArea className="flex-1 px-2 pb-2">
+      <ScrollArea className="flex-1 px-2 py-2">
         <nav className="space-y-0.5">
-          {NAV_ITEMS.map(({ to, icon: Icon, label }) => (
+          {items.map(({ to, icon: Icon, label }) => (
             <NavLink
               key={to}
               to={to}
@@ -344,22 +377,40 @@ function Sidebar({ user }: { user: AppUser }) {
             </NavLink>
           ))}
         </nav>
+
+        {/* System Settings group — hospital nav only */}
+        {!isSuper && (
+          <div className="mt-4">
+            <div className="mb-1 flex items-center gap-2 px-3 py-1">
+              <Settings size={14} className="shrink-0 text-muted-foreground" />
+              <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">System Settings</span>
+            </div>
+            <div className="space-y-0.5">
+              {SETTINGS_NAV_ITEMS.map(({ to, icon: Icon, label }) => (
+                <NavLink
+                  key={to}
+                  to={to}
+                  end={to === "/staff"}
+                  className={({ isActive }) =>
+                    cn(
+                      "flex items-center gap-2.5 rounded-md px-3 py-2 text-sm font-medium transition-colors",
+                      isActive
+                        ? "bg-primary text-primary-foreground"
+                        : "text-foreground hover:bg-accent"
+                    )
+                  }
+                >
+                  <Icon size={16} className="shrink-0" />
+                  <span className="truncate">{label}</span>
+                </NavLink>
+              ))}
+            </div>
+          </div>
+        )}
       </ScrollArea>
 
-      {/* Bottom — Settings + Logout */}
-      <div className="shrink-0 border-t border-border px-2 py-2 space-y-0.5">
-        <NavLink
-          to="/settings/facility"
-          className={({ isActive }) =>
-            cn(
-              "flex items-center gap-2.5 rounded-md px-3 py-2 text-sm font-medium transition-colors",
-              isActive ? "bg-primary text-primary-foreground" : "text-foreground hover:bg-accent"
-            )
-          }
-        >
-          <Settings size={16} className="shrink-0" />
-          <span>Settings</span>
-        </NavLink>
+      {/* Bottom — Logout */}
+      <div className="shrink-0 border-t border-border px-2 py-2">
         <button
           onClick={() => navigate("/login")}
           className="flex w-full items-center gap-2.5 rounded-md px-3 py-2 text-sm font-medium text-foreground transition-colors hover:bg-accent"
@@ -377,6 +428,7 @@ function Sidebar({ user }: { user: AppUser }) {
 interface AppShellProps {
   children: ReactNode
   user?: AppUser
+  navVariant?: "hospital" | "super-admin"
   showSessionWarning?: boolean
   notifications?: Notification[]
 }
@@ -426,6 +478,7 @@ const DEFAULT_NOTIFICATIONS: Notification[] = [
 export function AppShell({
   children,
   user = DEFAULT_USER,
+  navVariant = "hospital",
   showSessionWarning = false,
   notifications: initialNotifications = DEFAULT_NOTIFICATIONS,
 }: AppShellProps) {
@@ -447,10 +500,10 @@ export function AppShell({
     <div className="min-h-screen bg-background">
       <Topbar user={user} unreadCount={unreadCount} onBellClick={() => setNotifOpen((v) => !v)} />
 
-      <Sidebar user={user} />
+      <Sidebar user={user} navVariant={navVariant} />
 
       {/* Main — offset for topbar (pt-14) and sidebar (pl-52) */}
-      <main className="min-h-screen pl-52 pt-14">
+      <main className="min-h-screen pl-60 pt-16">
         <div className="p-6">
           {sessionWarning && (
             <SessionTimeoutBanner onDismiss={() => setSessionWarning(false)} />
