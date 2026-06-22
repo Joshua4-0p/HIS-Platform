@@ -7,7 +7,9 @@ import {
   ChevronLeft,
   ChevronRight,
   Clock,
+  History,
   Plus,
+  Send,
   ShieldCheck,
   ShieldOff,
   XCircle,
@@ -29,6 +31,33 @@ interface TransferRow {
   accessType: string
   received: string
   status: RequestStatus
+}
+
+interface OutgoingRow {
+  id: string
+  targetHospital: string
+  patientName: string
+  accessType: string
+  submitted: string
+  status: RequestStatus
+}
+
+interface ActiveGrant {
+  id: string
+  hospital: string
+  patientName: string
+  accessType: string
+  grantedOn: string
+  expiresOn: string
+  expiringSoon?: boolean
+}
+
+interface ExpiredGrant {
+  id: string
+  hospital: string
+  patientName: string
+  accessType: string
+  expiredOn: string
 }
 
 // ── Mock data ─────────────────────────────────────────────────────────────────
@@ -76,30 +105,80 @@ const MOCK_TRANSFERS: TransferRow[] = [
   },
 ]
 
-const PAGE_SIZE = 10
-
-// ── Active grants mock (REQ-F-053: revocation) ────────────────────────────────
-
-interface ActiveGrant {
-  id: string
-  hospital: string
-  patientName: string
-  accessType: string
-  expiresOn: string
-}
+const MOCK_OUTGOING: OutgoingRow[] = [
+  {
+    id: "out-001",
+    targetHospital: "St. Luc Hospital Douala",
+    patientName: "Fouda, Emmanuel",
+    accessType: "Full Chart",
+    submitted: "3 hours ago",
+    status: "Pending",
+  },
+  {
+    id: "out-002",
+    targetHospital: "Yaoundé General Hospital",
+    patientName: "Bello, Aisha",
+    accessType: "Lab Results",
+    submitted: "Oct 22, 2023",
+    status: "Approved",
+  },
+]
 
 const MOCK_ACTIVE_GRANTS: ActiveGrant[] = [
-  { id: "ag-001", hospital: "St. Jude Medical",     patientName: "Johnson, Kevin", accessType: "Lab Results",    expiresOn: "Oct 25, 2023 at 09:41" },
-  { id: "ag-002", hospital: "Mercy General",         patientName: "Diallo, Amina",  accessType: "Full Chart",     expiresOn: "Oct 26, 2023 at 14:00" },
-  { id: "ag-003", hospital: "Valley View Clinic",    patientName: "Nkeng, Mary",    accessType: "Imaging Only",   expiresOn: "Oct 28, 2023 at 10:00" },
+  {
+    id: "ag-001",
+    hospital: "St. Jude Medical",
+    patientName: "Johnson, Kevin",
+    accessType: "Lab Results",
+    grantedOn: "Oct 18, 2023",
+    expiresOn: "Oct 25, 2023 at 09:41",
+    expiringSoon: true,
+  },
+  {
+    id: "ag-002",
+    hospital: "Mercy General",
+    patientName: "Diallo, Amina",
+    accessType: "Full Chart",
+    grantedOn: "Oct 19, 2023",
+    expiresOn: "Oct 26, 2023 at 14:00",
+    expiringSoon: false,
+  },
+  {
+    id: "ag-003",
+    hospital: "Valley View Clinic",
+    patientName: "Nkeng, Mary",
+    accessType: "Imaging Only",
+    grantedOn: "Oct 20, 2023",
+    expiresOn: "Oct 28, 2023 at 10:00",
+    expiringSoon: false,
+  },
 ]
+
+const MOCK_EXPIRED: ExpiredGrant[] = [
+  {
+    id: "exp-001",
+    hospital: "Mercy General Hospital",
+    patientName: "Alvarez, Maria",
+    accessType: "Lab Results",
+    expiredOn: "Oct 20, 2023",
+  },
+  {
+    id: "exp-002",
+    hospital: "Valley View Clinic",
+    patientName: "Smith, James T.",
+    accessType: "Imaging Only",
+    expiredOn: "Oct 18, 2023",
+  },
+]
+
+const PAGE_SIZE = 10
 
 // ── Status badge ──────────────────────────────────────────────────────────────
 
 function StatusBadge({ status }: { status: RequestStatus }) {
   if (status === "Pending")
     return (
-      <span className="inline-flex items-center gap-1 rounded-full bg-[#F59E0B]/10 px-2.5 py-0.5 text-xs font-medium text-[#78350F]">
+      <span className="inline-flex items-center gap-1 rounded-full bg-[#F59E0B]/10 px-2.5 py-0.5 text-xs font-medium text-[#78350F] dark:text-[#F59E0B]">
         <Clock size={10} /> Pending
       </span>
     )
@@ -116,7 +195,18 @@ function StatusBadge({ status }: { status: RequestStatus }) {
   )
 }
 
-// ── Page ─────────────────────────────────────────────────────────────────────
+// ── Empty state ───────────────────────────────────────────────────────────────
+
+function EmptyState({ icon, message }: { icon: React.ReactNode; message: string }) {
+  return (
+    <div className="flex flex-col items-center justify-center gap-3 rounded-lg border border-dashed border-border bg-card py-14">
+      <div className="text-muted-foreground/40">{icon}</div>
+      <p className="text-sm text-muted-foreground">{message}</p>
+    </div>
+  )
+}
+
+// ── Tab config ────────────────────────────────────────────────────────────────
 
 const TABS: { key: TabKey; label: string; count?: number }[] = [
   { key: "incoming", label: "Incoming Requests", count: 12 },
@@ -125,11 +215,13 @@ const TABS: { key: TabKey; label: string; count?: number }[] = [
   { key: "expired",  label: "Expired Grants" },
 ]
 
+// ── Page ─────────────────────────────────────────────────────────────────────
+
 export function TransfersListPage() {
   const navigate = useNavigate()
-  const [activeTab,    setActiveTab]    = useState<TabKey>("incoming")
-  const [page,         setPage]         = useState(1)
-  const [revokedIds,   setRevokedIds]   = useState<Set<string>>(new Set())
+  const [activeTab,  setActiveTab]  = useState<TabKey>("incoming")
+  const [page,       setPage]       = useState(1)
+  const [revokedIds, setRevokedIds] = useState<Set<string>>(new Set())
 
   function handleRevoke(grant: ActiveGrant) {
     setRevokedIds(prev => new Set([...prev, grant.id]))
@@ -151,9 +243,18 @@ export function TransfersListPage() {
             Manage external requests and cross-facility patient data access.
           </p>
         </div>
-        <Button onClick={() => navigate("/transfers/request/new")} className="gap-2">
-          <Plus size={16} /> New Transfer Request
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          <Button
+            variant="outline"
+            onClick={() => navigate("/transfers/grant/new")}
+            className="gap-2"
+          >
+            <ShieldCheck size={16} /> Grant Proactive Access
+          </Button>
+          <Button onClick={() => navigate("/transfers/request/new")} className="gap-2">
+            <Plus size={16} /> New Transfer Request
+          </Button>
+        </div>
       </div>
 
       {/* Stat cards */}
@@ -194,24 +295,25 @@ export function TransfersListPage() {
         </div>
         <button
           type="button"
+          onClick={() => setActiveTab("active")}
           className="inline-flex items-center gap-1 text-sm font-medium text-[#78350F] underline-offset-2 hover:underline dark:text-[#F59E0B]"
         >
           Review <ArrowRight size={13} />
         </button>
       </div>
 
-      {/* Tabs */}
+      {/* Tabs — underline style per design spec */}
       <div className="space-y-4">
-        <div className="flex gap-1 rounded-lg bg-muted p-1">
+        <div className="flex border-b border-border">
           {TABS.map(tab => (
             <button
               key={tab.key}
               type="button"
               onClick={() => { setActiveTab(tab.key); setPage(1) }}
-              className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
+              className={`-mb-px flex items-center gap-1.5 border-b-2 px-4 py-2.5 text-sm font-medium transition-colors ${
                 activeTab === tab.key
-                  ? "bg-card text-foreground shadow-sm"
-                  : "text-muted-foreground hover:text-foreground"
+                  ? "border-primary text-primary"
+                  : "border-transparent text-muted-foreground hover:text-foreground"
               }`}
             >
               {tab.label}
@@ -224,106 +326,199 @@ export function TransfersListPage() {
           ))}
         </div>
 
-        {/* Table — Incoming / Outgoing / Expired */}
-        {activeTab !== "active" && (
-          <div className="overflow-hidden rounded-lg border border-border bg-card shadow-sm">
-            <div className="overflow-x-auto">
-              <table className="w-full border-collapse text-left">
-                <thead className="border-b border-border bg-muted">
-                  <tr>
-                    {["Requesting Hospital", "Patient Name", "Access Type", "Received", "Status", "Action"].map(h => (
-                      <th
-                        key={h}
-                        className="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground"
-                      >
-                        {h}
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-border">
-                  {pageRows.map(row => (
-                    <tr key={row.id} className="transition-colors hover:bg-muted/40">
-                      <td className="px-4 py-3">
-                        <p className="text-sm font-medium text-foreground">{row.requestingHospital}</p>
-                        <p className="text-xs text-muted-foreground">{row.requestingPhysician}</p>
-                      </td>
-                      <td className="px-4 py-3">
-                        <p className="text-sm font-medium text-foreground">{row.patientName}</p>
-                        <p className="text-xs text-muted-foreground">DOB: {row.patientDob}</p>
-                      </td>
-                      <td className="whitespace-nowrap px-4 py-3 text-sm text-foreground">
-                        {row.accessType}
-                      </td>
-                      <td className="whitespace-nowrap px-4 py-3 text-sm text-muted-foreground">
-                        {row.received}
-                      </td>
-                      <td className="px-4 py-3">
-                        <StatusBadge status={row.status} />
-                      </td>
-                      <td className="px-4 py-3">
-                        {row.status === "Pending" ? (
-                          <Link
-                            to={`/transfers/requests/${row.id}`}
-                            className="inline-flex items-center rounded-md border border-primary px-3 py-1.5 text-xs font-medium text-primary transition-colors hover:bg-primary/5"
+        {/* Incoming Requests */}
+        {activeTab === "incoming" && (
+          <>
+            {pageRows.length === 0 ? (
+              <EmptyState
+                icon={<ShieldCheck size={40} />}
+                message="No incoming transfer requests."
+              />
+            ) : (
+              <div className="overflow-hidden rounded-lg border border-border bg-card shadow-sm">
+                <div className="overflow-x-auto">
+                  <table className="w-full border-collapse text-left">
+                    <thead className="border-b border-border bg-muted">
+                      <tr>
+                        {["Requesting Hospital", "Patient Name", "Access Type", "Received", "Status", "Action"].map(h => (
+                          <th
+                            key={h}
+                            className="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground"
                           >
-                            Review
-                          </Link>
-                        ) : (
-                          <Link
-                            to={`/transfers/requests/${row.id}`}
-                            className="text-sm text-primary hover:underline"
-                          >
-                            {row.status === "Approved" ? "View Details" : "View Reason"}
-                          </Link>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+                            {h}
+                          </th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-border">
+                      {pageRows.map(row => (
+                        <tr key={row.id} className="transition-colors hover:bg-muted/40">
+                          <td className="px-4 py-3">
+                            <p className="text-sm font-medium text-foreground">{row.requestingHospital}</p>
+                            <p className="text-xs text-muted-foreground">{row.requestingPhysician}</p>
+                          </td>
+                          <td className="px-4 py-3">
+                            <p className="text-sm font-medium text-foreground">{row.patientName}</p>
+                            <p className="text-xs text-muted-foreground">DOB: {row.patientDob}</p>
+                          </td>
+                          <td className="whitespace-nowrap px-4 py-3 text-sm text-foreground">
+                            {row.accessType}
+                          </td>
+                          <td className="whitespace-nowrap px-4 py-3 text-sm text-muted-foreground">
+                            {row.received}
+                          </td>
+                          <td className="px-4 py-3">
+                            <StatusBadge status={row.status} />
+                          </td>
+                          <td className="px-4 py-3">
+                            {row.status === "Pending" ? (
+                              <Link
+                                to={`/transfers/requests/${row.id}`}
+                                className="inline-flex items-center rounded-md border border-primary px-3 py-1.5 text-xs font-medium text-primary transition-colors hover:bg-primary/5"
+                              >
+                                Review
+                              </Link>
+                            ) : (
+                              <span className="text-xs text-muted-foreground">—</span>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+            {/* Pagination — incoming only */}
+            <div className="flex items-center justify-between border-t border-border pt-3">
+              <p className="text-xs text-muted-foreground">
+                Showing 1 to {pageRows.length} of 24 requests
+              </p>
+              <div className="flex items-center gap-1">
+                <button
+                  type="button"
+                  onClick={() => setPage(p => Math.max(1, p - 1))}
+                  disabled={page <= 1}
+                  className="flex items-center gap-1 rounded-md border border-border px-3 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground disabled:pointer-events-none disabled:opacity-40"
+                >
+                  <ChevronLeft size={14} /> Previous
+                </button>
+                <span className="min-w-16 text-center text-xs text-muted-foreground">
+                  Page {page} of {totalPages}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+                  disabled={page >= totalPages}
+                  className="flex items-center gap-1 rounded-md border border-border px-3 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground disabled:pointer-events-none disabled:opacity-40"
+                >
+                  Next <ChevronRight size={14} />
+                </button>
+              </div>
             </div>
-          </div>
+          </>
         )}
 
-        {/* Active Grants table — REQ-F-053 revocation UI */}
-        {activeTab === "active" && (
-          <div className="overflow-hidden rounded-lg border border-border bg-card shadow-sm">
-            <div className="overflow-x-auto">
-              <table className="w-full border-collapse text-left">
-                <thead className="border-b border-border bg-muted">
-                  <tr>
-                    {["Receiving Hospital", "Patient Name", "Access Type", "Expires On", "Action"].map(h => (
-                      <th
-                        key={h}
-                        className="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground"
-                      >
-                        {h}
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-border">
-                  {MOCK_ACTIVE_GRANTS.map(grant => {
-                    const revoked = revokedIds.has(grant.id)
-                    return (
-                      <tr key={grant.id} className={`transition-colors hover:bg-muted/40 ${revoked ? "opacity-50" : ""}`}>
-                        <td className="px-4 py-3">
-                          <p className="text-sm font-medium text-foreground">{grant.hospital}</p>
-                        </td>
+        {/* Outgoing Requests */}
+        {activeTab === "outgoing" && (
+          MOCK_OUTGOING.length === 0 ? (
+            <EmptyState
+              icon={<Send size={40} />}
+              message="No outgoing transfer requests."
+            />
+          ) : (
+            <div className="overflow-hidden rounded-lg border border-border bg-card shadow-sm">
+              <div className="overflow-x-auto">
+                <table className="w-full border-collapse text-left">
+                  <thead className="border-b border-border bg-muted">
+                    <tr>
+                      {["Patient Name", "Hospital", "Access Type", "Submitted", "Status"].map(h => (
+                        <th
+                          key={h}
+                          className="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground"
+                        >
+                          {h}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-border">
+                    {MOCK_OUTGOING.map(row => (
+                      <tr key={row.id} className="transition-colors hover:bg-muted/40">
                         <td className="px-4 py-3 text-sm font-medium text-foreground">
-                          {grant.patientName}
+                          {row.patientName}
+                        </td>
+                        <td className="px-4 py-3 text-sm text-foreground">
+                          {row.targetHospital}
                         </td>
                         <td className="whitespace-nowrap px-4 py-3 text-sm text-foreground">
-                          {grant.accessType}
+                          {row.accessType}
                         </td>
                         <td className="whitespace-nowrap px-4 py-3 text-sm text-muted-foreground">
-                          {grant.expiresOn}
+                          {row.submitted}
                         </td>
                         <td className="px-4 py-3">
-                          {revoked ? (
-                            <span className="text-xs text-muted-foreground">Revoked</span>
-                          ) : (
+                          <StatusBadge status={row.status} />
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )
+        )}
+
+        {/* Active Grants — REQ-F-053 revocation */}
+        {activeTab === "active" && (
+          MOCK_ACTIVE_GRANTS.filter(g => !revokedIds.has(g.id)).length === 0 ? (
+            <EmptyState
+              icon={<ShieldCheck size={40} />}
+              message="No active access grants."
+            />
+          ) : (
+            <div className="overflow-hidden rounded-lg border border-border bg-card shadow-sm">
+              <div className="overflow-x-auto">
+                <table className="w-full border-collapse text-left">
+                  <thead className="border-b border-border bg-muted">
+                    <tr>
+                      {["Receiving Hospital", "Patient Name", "Access Type", "Granted", "Expires", "Action"].map(h => (
+                        <th
+                          key={h}
+                          className="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground"
+                        >
+                          {h}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-border">
+                    {MOCK_ACTIVE_GRANTS.map(grant => {
+                      if (revokedIds.has(grant.id)) return null
+                      return (
+                        <tr key={grant.id} className="transition-colors hover:bg-muted/40">
+                          <td className="px-4 py-3 text-sm font-medium text-foreground">
+                            {grant.hospital}
+                          </td>
+                          <td className="px-4 py-3 text-sm font-medium text-foreground">
+                            {grant.patientName}
+                          </td>
+                          <td className="whitespace-nowrap px-4 py-3 text-sm text-foreground">
+                            {grant.accessType}
+                          </td>
+                          <td className="whitespace-nowrap px-4 py-3 text-sm text-muted-foreground">
+                            {grant.grantedOn}
+                          </td>
+                          <td className="whitespace-nowrap px-4 py-3">
+                            {grant.expiringSoon ? (
+                              <span className="inline-flex items-center gap-1 text-sm font-medium text-[#78350F] dark:text-[#F59E0B]">
+                                <Clock size={12} /> {grant.expiresOn} — Expires soon
+                              </span>
+                            ) : (
+                              <span className="text-sm text-muted-foreground">{grant.expiresOn}</span>
+                            )}
+                          </td>
+                          <td className="px-4 py-3">
                             <button
                               type="button"
                               onClick={() => handleRevoke(grant)}
@@ -331,44 +526,71 @@ export function TransfersListPage() {
                             >
                               <ShieldOff size={12} /> Revoke
                             </button>
-                          )}
-                        </td>
-                      </tr>
-                    )
-                  })}
-                </tbody>
-              </table>
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
             </div>
-          </div>
+          )
         )}
 
-        {/* Pagination */}
-        <div className="flex items-center justify-between border-t border-border pt-3">
-          <p className="text-xs text-muted-foreground">
-            Showing 1 to {pageRows.length} of 24 requests
-          </p>
-          <div className="flex items-center gap-1">
-            <button
-              type="button"
-              onClick={() => setPage(p => Math.max(1, p - 1))}
-              disabled={page <= 1}
-              className="flex items-center gap-1 rounded-md border border-border px-3 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground disabled:pointer-events-none disabled:opacity-40"
-            >
-              <ChevronLeft size={14} /> Previous
-            </button>
-            <span className="min-w-16 text-center text-xs text-muted-foreground">
-              Page {page} of {totalPages}
-            </span>
-            <button
-              type="button"
-              onClick={() => setPage(p => Math.min(totalPages, p + 1))}
-              disabled={page >= totalPages}
-              className="flex items-center gap-1 rounded-md border border-border px-3 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground disabled:pointer-events-none disabled:opacity-40"
-            >
-              Next <ChevronRight size={14} />
-            </button>
-          </div>
-        </div>
+        {/* Expired Grants */}
+        {activeTab === "expired" && (
+          MOCK_EXPIRED.length === 0 ? (
+            <EmptyState
+              icon={<History size={40} />}
+              message="No expired grants."
+            />
+          ) : (
+            <div className="overflow-hidden rounded-lg border border-border bg-card shadow-sm">
+              <div className="overflow-x-auto">
+                <table className="w-full border-collapse text-left">
+                  <thead className="border-b border-border bg-muted">
+                    <tr>
+                      {["Patient Name", "Hospital", "Access Type", "Expired On", "Action"].map(h => (
+                        <th
+                          key={h}
+                          className="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground"
+                        >
+                          {h}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-border">
+                    {MOCK_EXPIRED.map(grant => (
+                      <tr key={grant.id} className="transition-colors hover:bg-muted/40">
+                        <td className="px-4 py-3 text-sm font-medium text-foreground">
+                          {grant.patientName}
+                        </td>
+                        <td className="px-4 py-3 text-sm text-foreground">
+                          {grant.hospital}
+                        </td>
+                        <td className="whitespace-nowrap px-4 py-3 text-sm text-foreground">
+                          {grant.accessType}
+                        </td>
+                        <td className="whitespace-nowrap px-4 py-3 text-sm text-muted-foreground">
+                          {grant.expiredOn}
+                        </td>
+                        <td className="px-4 py-3">
+                          <Link
+                            to="/transfers/request/new"
+                            className="inline-flex items-center rounded-md border border-primary px-3 py-1.5 text-xs font-medium text-primary transition-colors hover:bg-primary/5"
+                          >
+                            Request Renewal
+                          </Link>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )
+        )}
       </div>
     </div>
   )

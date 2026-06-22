@@ -1,5 +1,5 @@
 import { useState } from "react"
-import { Link, useNavigate } from "react-router-dom"
+import { Link, useLocation, useNavigate } from "react-router-dom"
 import {
   ArrowLeft,
   CheckCircle,
@@ -15,15 +15,31 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Label } from "@/components/ui/label"
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip"
 
 // ── Page ─────────────────────────────────────────────────────────────────────
 
 export function TransferGrantPage() {
   const navigate = useNavigate()
+  const location = useLocation()
+  const state = location.state as {
+    patientName?: string
+    patientId?:   string
+    patientDob?:  string
+  } | null
+
+  const patientName = state?.patientName ?? "ED Ebai, David M."
+  const patientId   = state?.patientId   ?? "PT-8839201"
+  const patientDob  = state?.patientDob  ?? "14/05/1982"
 
   const [hospital,    setHospital]    = useState("")
   const [accessLevel, setAccessLevel] = useState<"view" | "consult">("view")
-  const [duration,    setDuration]    = useState("30")
+  const [duration,    setDuration]    = useState("7")
   const [submitting,  setSubmitting]  = useState(false)
 
   function handleSubmit(e: React.FormEvent) {
@@ -40,7 +56,7 @@ export function TransferGrantPage() {
     setTimeout(() => {
       setSubmitting(false)
       toast.success("Access granted", {
-        description: `${hospital} can now access this patient's records for ${duration} day(s).`,
+        description: "The receiving hospital now has access to this patient's records.",
       })
       navigate(-1)
     }, 800)
@@ -63,15 +79,18 @@ export function TransferGrantPage() {
         </h1>
       </div>
 
-      {/* Patient record card */}
+      {/* Patient record card — pre-filled from Patient Profile or fallback default */}
       <div className="rounded-lg border border-border bg-card p-5 shadow-sm">
+        <p className="mb-2 text-xs font-medium text-muted-foreground">Patient Record</p>
         <div className="flex items-center gap-3">
           <div className="flex size-10 items-center justify-center rounded-full bg-primary/10">
             <ShieldCheck size={20} className="text-primary" />
           </div>
           <div>
-            <p className="text-sm font-semibold text-foreground">ED Ebai, David M.</p>
-            <p className="text-xs text-muted-foreground">ID: PT-8839201 &bull; DOB: 14/05/1982</p>
+            <p className="text-sm font-semibold text-foreground">{patientName}</p>
+            <p className="text-xs text-muted-foreground">
+              ID: {patientId} &bull; DOB: {patientDob}
+            </p>
           </div>
         </div>
       </div>
@@ -142,9 +161,22 @@ export function TransferGrantPage() {
 
         {/* Duration */}
         <div className="rounded-lg border border-border bg-card p-5 shadow-sm space-y-2">
-          <label htmlFor="duration" className="text-sm font-semibold text-foreground">
-            Access Duration (Days) <span className="text-destructive">*</span>
-          </label>
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <label
+                  htmlFor="duration"
+                  className="inline-flex cursor-default items-center gap-1.5 text-sm font-semibold text-foreground"
+                >
+                  Access Duration (Days) <span className="text-destructive">*</span>
+                  <Info size={13} className="text-muted-foreground" />
+                </label>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>Access auto-expires after this many days. Default is 7 days.</p>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
           <div className="flex items-center gap-2">
             <Input
               id="duration"
@@ -162,10 +194,10 @@ export function TransferGrantPage() {
           </p>
         </div>
 
-        {/* Info note */}
-        <div className="flex gap-2 rounded-lg border border-border bg-muted/40 p-4">
-          <Info size={15} className="mt-0.5 shrink-0 text-muted-foreground" />
-          <p className="text-sm text-muted-foreground">
+        {/* Info note — teal per design spec */}
+        <div className="flex gap-2 rounded-lg border border-[#0D9488] bg-[#0D9488]/10 p-4">
+          <Info size={15} className="mt-0.5 shrink-0 text-[#0D9488]" />
+          <p className="text-sm text-foreground">
             This grants immediate access to the selected hospital&apos;s clinical staff to view this
             patient&apos;s historical and active laboratory results across the network.
           </p>

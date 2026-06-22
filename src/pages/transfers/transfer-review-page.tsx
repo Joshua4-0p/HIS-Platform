@@ -10,6 +10,17 @@ import {
   XCircle,
 } from "lucide-react"
 import { toast } from "sonner"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Separator } from "@/components/ui/separator"
@@ -21,6 +32,7 @@ const MOCK_REQUEST = {
   patientId:            "PT-88492-MR",
   requestingFacility:   "Northside General Hospital",
   requestingPhysician:  "Dr. Sarah Jenkins, Cardiology",
+  accessType:           "Full Chart (View Only)",
   dateRequested:        "Oct 24, 2023 • 09:41 AM",
   requestedRecords:     ["Lab Results", "Imaging", "Consult Notes"],
   reason:
@@ -34,6 +46,7 @@ export function TransferReviewPage() {
   const [duration,  setDuration]  = useState("7")
   const [decision,  setDecision]  = useState<"approved" | "denied" | null>(null)
   const [loading,   setLoading]   = useState(false)
+  const [decisionDate, setDecisionDate] = useState("")
 
   void id
 
@@ -45,6 +58,8 @@ export function TransferReviewPage() {
     setLoading(true)
     setTimeout(() => {
       setLoading(false)
+      const now = new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
+      setDecisionDate(now)
       setDecision(action)
       if (action === "approved") {
         toast.success("Access granted", { description: `Patient records shared for ${duration} day(s).` })
@@ -54,12 +69,19 @@ export function TransferReviewPage() {
     }, 600)
   }
 
+  // Computed expiry for approved decisions
+  const expiryDate = decision === "approved" && duration
+    ? new Date(Date.now() + Number(duration) * 86_400_000).toLocaleDateString("en-US", {
+        month: "short", day: "numeric", year: "numeric",
+      })
+    : null
+
   return (
     <div className="space-y-6">
-      {/* Back */}
+      {/* Back — text-primary per spec */}
       <Link
         to="/transfers"
-        className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"
+        className="inline-flex items-center gap-1.5 text-sm text-primary hover:text-primary/80"
       >
         <ArrowLeft size={15} /> Patient Transfers
       </Link>
@@ -87,7 +109,7 @@ export function TransferReviewPage() {
             )}
           </span>
         ) : (
-          <span className="inline-flex items-center gap-1.5 rounded-full bg-[#F59E0B]/10 px-3 py-1 text-xs font-semibold text-[#78350F]">
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-[#F59E0B]/10 px-3 py-1 text-xs font-semibold text-[#78350F] dark:text-[#F59E0B]">
             <Clock size={13} /> Pending Review
           </span>
         )}
@@ -95,9 +117,10 @@ export function TransferReviewPage() {
 
       <div className="grid gap-6 lg:grid-cols-3">
         {/* Request details */}
-        <div className="lg:col-span-2 space-y-5 rounded-lg border border-border bg-card p-6 shadow-sm">
-          <h2 className="flex items-center gap-2 text-sm font-semibold text-foreground">
-            <ClipboardList size={16} className="text-primary" /> Request Details
+        <div className="space-y-5 rounded-lg border border-border bg-card p-6 shadow-sm lg:col-span-2">
+          {/* Heading — text-lg per spec */}
+          <h2 className="flex items-center gap-2 text-lg font-semibold text-foreground">
+            <ClipboardList size={18} className="text-primary" /> Request Details
           </h2>
           <Separator />
           <dl className="grid gap-4 sm:grid-cols-2">
@@ -112,6 +135,15 @@ export function TransferReviewPage() {
                 <dd className="mt-0.5 text-sm font-medium text-foreground">{value}</dd>
               </div>
             ))}
+            {/* Access Type — badge display */}
+            <div>
+              <dt className="text-xs font-medium text-muted-foreground">Access Type</dt>
+              <dd className="mt-1">
+                <span className="inline-flex items-center rounded-full border border-border bg-muted px-2.5 py-0.5 text-xs font-medium text-foreground">
+                  {MOCK_REQUEST.accessType}
+                </span>
+              </dd>
+            </div>
             <div className="sm:col-span-2">
               <dt className="text-xs font-medium text-muted-foreground">Requesting Facility</dt>
               <dd className="mt-0.5 flex items-center gap-1.5 text-sm font-medium text-foreground">
@@ -136,12 +168,12 @@ export function TransferReviewPage() {
             </div>
           </div>
 
-          {/* Reason */}
+          {/* Reason — bg-muted rounded-md per spec */}
           <div>
             <p className="mb-2 text-xs font-medium text-muted-foreground">Reason for Transfer</p>
-            <blockquote className="rounded-md border-l-4 border-primary bg-muted/40 px-4 py-3 text-sm italic text-foreground">
-              "{MOCK_REQUEST.reason}"
-            </blockquote>
+            <div className="rounded-md bg-muted p-3 text-sm text-foreground">
+              {MOCK_REQUEST.reason}
+            </div>
           </div>
         </div>
 
@@ -169,7 +201,7 @@ export function TransferReviewPage() {
             </p>
           </div>
 
-          {/* HIPAA badge */}
+          {/* HIPAA notice */}
           <div className="flex items-center gap-2 rounded-md bg-[#10B981]/10 px-3 py-2">
             <ShieldCheck size={15} className="text-[#10B981]" />
             <span className="text-xs font-medium text-[#10B981]">HIPAA Compliant Transfer</span>
@@ -186,15 +218,73 @@ export function TransferReviewPage() {
             >
               <CheckCircle size={15} /> Approve Access
             </Button>
-            <Button
-              variant="outline"
-              className="w-full gap-2 border-destructive text-destructive hover:bg-destructive/5"
-              onClick={() => handleDecision("denied")}
-              disabled={!!decision || loading}
-            >
-              <XCircle size={15} /> Deny Request
-            </Button>
+
+            {/* Deny — two-step confirmation dialog per UI-010 */}
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button
+                  variant="destructive"
+                  className="w-full gap-2"
+                  disabled={!!decision || loading}
+                >
+                  <XCircle size={15} /> Deny Request
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Deny Transfer Request</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    This will deny{" "}
+                    <strong>{MOCK_REQUEST.requestingFacility}</strong>&apos;s access to{" "}
+                    <strong>{MOCK_REQUEST.patientName}</strong>&apos;s records. The requesting
+                    facility will be notified. This action cannot be undone.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                  <AlertDialogAction
+                    onClick={() => handleDecision("denied")}
+                    className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                  >
+                    Deny Request
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
           </div>
+
+          {/* Post-decision detail rows */}
+          {decision && (
+            <dl className="space-y-3 rounded-md border border-border bg-muted/40 p-4 pt-3">
+              {decision === "approved" ? (
+                <>
+                  <div>
+                    <dt className="text-xs text-muted-foreground">Approved by</dt>
+                    <dd className="text-sm font-medium text-foreground">Dr. J. Elong (You)</dd>
+                  </div>
+                  <div>
+                    <dt className="text-xs text-muted-foreground">Approved on</dt>
+                    <dd className="text-sm font-medium text-foreground">{decisionDate}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-xs text-muted-foreground">Expires on</dt>
+                    <dd className="text-sm font-medium text-[#10B981]">{expiryDate}</dd>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div>
+                    <dt className="text-xs text-muted-foreground">Denied by</dt>
+                    <dd className="text-sm font-medium text-foreground">Dr. J. Elong (You)</dd>
+                  </div>
+                  <div>
+                    <dt className="text-xs text-muted-foreground">Denied on</dt>
+                    <dd className="text-sm font-medium text-foreground">{decisionDate}</dd>
+                  </div>
+                </>
+              )}
+            </dl>
+          )}
         </div>
       </div>
     </div>

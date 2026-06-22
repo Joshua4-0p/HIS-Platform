@@ -31,20 +31,20 @@ export function TransferRequestPage() {
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    if (!reason.trim()) {
-      toast.error("Reason required", { description: "Please provide a reason for this transfer request." })
+    if (reason.trim().length < 20) {
+      toast.error("Reason too short", { description: "Please provide at least 20 characters describing the clinical reason." })
       return
     }
     setSubmitting(true)
     setTimeout(() => {
       setSubmitting(false)
-      toast.success("Request submitted", { description: "Your access request has been sent to the source facility." })
+      toast.success("Access Request Submitted", { description: "The source hospital has been notified of your request." })
       navigate("/transfers")
     }, 800)
   }
 
   return (
-    <div className="space-y-6">
+    <div className="mx-auto max-w-130 space-y-6">
       {/* Breadcrumb */}
       <nav className="flex items-center gap-1 text-sm text-muted-foreground">
         <Link to="/transfers" className="hover:text-foreground">Transfers</Link>
@@ -54,25 +54,21 @@ export function TransferRequestPage() {
 
       {/* Header */}
       <div>
-        <h1 className="text-2xl font-semibold text-foreground">Request Patient Access</h1>
-        <p className="mt-1 text-sm text-muted-foreground">Transfer Access Request</p>
+        <h1 className="text-lg font-semibold text-foreground">Request Patient Access</h1>
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-6">
-        {/* Target patient card */}
-        <div className="rounded-lg border border-border bg-card p-5 shadow-sm">
-          <div className="flex items-start gap-3">
-            <div className="flex size-10 items-center justify-center rounded-full bg-primary/10">
-              <ShieldCheck size={20} className="text-primary" />
-            </div>
-            <div>
-              <p className="text-base font-semibold text-foreground">{patientName}</p>
-              <p className="text-xs text-muted-foreground">ID: PT-8820-A</p>
-            </div>
-          </div>
-          <div className="mt-4 flex items-center gap-2 rounded-md bg-muted/50 px-3 py-2">
-            <Building2 size={14} className="shrink-0 text-muted-foreground" />
-            <span className="text-sm text-muted-foreground">
+        {/* Target patient summary */}
+        <div className="rounded-md bg-muted p-3">
+          <p className="text-xs font-medium text-muted-foreground">Target Patient</p>
+          <p className="mt-0.5 flex items-center gap-1.5 text-sm font-semibold text-foreground">
+            {patientName}
+            <ShieldCheck size={14} className="text-primary" />
+          </p>
+          <p className="text-xs text-muted-foreground">ID: PT-8820-A</p>
+          <div className="mt-2 flex items-center gap-1.5">
+            <Building2 size={13} className="shrink-0 text-muted-foreground" />
+            <span className="text-xs text-muted-foreground">
               Source Facility: <span className="font-medium text-foreground">{hospital}</span>
             </span>
           </div>

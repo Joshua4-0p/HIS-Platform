@@ -1,8 +1,9 @@
 import { useState } from "react"
-import { Link, useParams } from "react-router-dom"
+import { Link, useNavigate, useParams } from "react-router-dom"
 import {
   Activity,
   AlertTriangle,
+  ArrowLeftRight,
   ArrowUp,
   Building2,
   CalendarCheck,
@@ -324,6 +325,7 @@ function LabStatus({ status }: { status: string }) {
 
 export function PatientProfilePage() {
   const { id = "1" } = useParams<{ id: string }>()
+  const navigate = useNavigate()
   const [activeTab, setActiveTab] = useState<TabId>("Timeline")
   const [encPage,   setEncPage]   = useState(1)
 
@@ -339,16 +341,34 @@ export function PatientProfilePage() {
       {/* ── Page header ── */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <h1 className="text-2xl font-semibold text-foreground">Patient Record</h1>
-        <div className="flex gap-3">
+        <div className="flex flex-wrap gap-2">
           <Button variant="outline" size="sm" className="gap-2 border-border">
             <Printer size={16} /> Print
           </Button>
           {!consentRefused && (
-            <Link to={`/patients/${id}/encounters/new`}>
-              <Button size="sm" className="gap-2 bg-primary text-primary-foreground hover:bg-primary/90">
-                <Plus size={16} /> New Encounter
+            <>
+              <Button
+                variant="outline"
+                size="sm"
+                className="gap-2"
+                onClick={() =>
+                  navigate("/transfers/grant/new", {
+                    state: {
+                      patientName: patient.name,
+                      patientId:   patient.pid,
+                      patientDob:  patient.dob,
+                    },
+                  })
+                }
+              >
+                <ArrowLeftRight size={16} /> Grant Transfer Access
               </Button>
-            </Link>
+              <Link to={`/patients/${id}/encounters/new`}>
+                <Button size="sm" className="gap-2 bg-primary text-primary-foreground hover:bg-primary/90">
+                  <Plus size={16} /> New Encounter
+                </Button>
+              </Link>
+            </>
           )}
         </div>
       </div>

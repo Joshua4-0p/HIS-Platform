@@ -1,5 +1,5 @@
 import { useState } from "react"
-import { useParams } from "react-router-dom"
+import { useNavigate, useParams } from "react-router-dom"
 import {
   AlertTriangle,
   ArrowUp,
@@ -55,11 +55,15 @@ const ENCOUNTERS = [
 
 export function TransferredPatientPage() {
   const { patientId } = useParams()
+  const navigate = useNavigate()
   const [tab, setTab] = useState("overview")
   void patientId
 
   function handleRenew() {
     toast.info("Renewal request sent", { description: "The source facility will be notified." })
+    navigate("/transfers/request/new", {
+      state: { patientName: PATIENT.name, hospital: PATIENT.originFacility },
+    })
   }
 
   return (
@@ -70,10 +74,10 @@ export function TransferredPatientPage() {
           <Clock size={16} className="text-[#F59E0B]" />
           <div>
             <p className="text-sm font-semibold text-[#78350F] dark:text-[#F59E0B]">
-              View-Only Access — Expiring Transfer Access
+              View-Only Access Expiring
             </p>
             <p className="text-xs text-[#92400E] dark:text-[#FCD34D]">
-              Expires On: {PATIENT.expiresOn}
+              Transfer Access Expires On: {PATIENT.expiresOn}
             </p>
           </div>
         </div>
@@ -103,15 +107,26 @@ export function TransferredPatientPage() {
             <p className="mt-1 text-sm text-muted-foreground">
               ID: {PATIENT.id} &bull; {PATIENT.sex} &bull; {PATIENT.age} yrs (DOB: {PATIENT.dob})
             </p>
-            <p className="mt-1 text-xs text-[#F59E0B]">
-              You have view-only access to this patient&apos;s records.
-            </p>
           </div>
         </div>
-        <div className="flex items-center gap-2">
-          <Button size="sm" variant="outline" className="gap-1.5">
-            <FileText size={14} /> Print
-          </Button>
+        <div className="flex flex-col items-end gap-2">
+          <div className="flex items-center gap-2">
+            {/* New Encounter — disabled for view-only access */}
+            <Button
+              size="sm"
+              variant="outline"
+              disabled
+              className="cursor-not-allowed gap-1.5 opacity-50"
+            >
+              New Encounter
+            </Button>
+            <Button size="sm" variant="outline" className="gap-1.5">
+              <FileText size={14} /> Print
+            </Button>
+          </div>
+          <p className="text-xs text-[#F59E0B]">
+            You have view-only access to this patient&apos;s records.
+          </p>
         </div>
       </div>
 
