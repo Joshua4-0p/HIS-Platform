@@ -1,3 +1,4 @@
+import { useRef } from "react"
 import { Activity, BarChart2, Building2, Download, Info } from "lucide-react"
 import {
   Bar,
@@ -37,11 +38,11 @@ const MONTHLY_TREND = [
 ]
 
 const REGIONS = [
-  { region: "Centre Region",    cases: 34521, pct: "24.2%" },
-  { region: "Littoral Region",  cases: 28901, pct: "20.2%" },
-  { region: "West Region",      cases: 19823, pct: "13.9%" },
-  { region: "Far North Region", cases: 17654, pct: "12.4%" },
-  { region: "South West Region",cases: 14312, pct: "10.0%" },
+  { region: "Centre Region",     cases: 34521, pct: "24.2%" },
+  { region: "Littoral Region",   cases: 28901, pct: "20.2%" },
+  { region: "West Region",       cases: 19823, pct: "13.9%" },
+  { region: "Far North Region",  cases: 17654, pct: "12.4%" },
+  { region: "South West Region", cases: 14312, pct: "10.0%" },
 ]
 
 // ── Tooltip styling for Recharts ──────────────────────────────────────────────
@@ -56,9 +57,39 @@ function ChartTooltipBox({ active, payload, label }: { active?: boolean; payload
   )
 }
 
+// ── PNG export helper ─────────────────────────────────────────────────────────
+
+function exportChartAsPng(ref: { current: HTMLDivElement | null }, filename: string) {
+  const svg = ref.current?.querySelector("svg")
+  if (!svg) return
+  const { width, height } = svg.getBoundingClientRect()
+  const svgData = new XMLSerializer().serializeToString(svg)
+  const url = URL.createObjectURL(new Blob([svgData], { type: "image/svg+xml;charset=utf-8" }))
+  const img = new Image()
+  img.onload = () => {
+    const canvas = document.createElement("canvas")
+    canvas.width = width
+    canvas.height = height
+    const ctx = canvas.getContext("2d")
+    if (!ctx) { URL.revokeObjectURL(url); return }
+    ctx.fillStyle = "#ffffff"
+    ctx.fillRect(0, 0, width, height)
+    ctx.drawImage(img, 0, 0)
+    URL.revokeObjectURL(url)
+    const a = document.createElement("a")
+    a.download = filename
+    a.href = canvas.toDataURL("image/png")
+    a.click()
+  }
+  img.src = url
+}
+
 // ── Component ─────────────────────────────────────────────────────────────────
 
 export function MinistryDashboard() {
+  const diseaseRef    = useRef<HTMLDivElement>(null)
+  const admissionsRef = useRef<HTMLDivElement>(null)
+
   return (
     <div className="space-y-6">
       {/* Page title */}
@@ -130,36 +161,43 @@ export function MinistryDashboard() {
       <div className="rounded-lg border border-border bg-card p-5 shadow-sm">
         <div className="mb-4 flex items-center justify-between">
           <h2 className="text-lg font-semibold text-foreground">Disease Categories This Month</h2>
-          <Button variant="ghost" size="sm" className="gap-1.5 text-xs text-muted-foreground">
+          <Button
+            variant="ghost"
+            size="sm"
+            className="gap-1.5 text-xs text-muted-foreground"
+            onClick={() => exportChartAsPng(diseaseRef, "disease-categories.png")}
+          >
             <Download size={13} /> Export PNG
           </Button>
         </div>
-        <ResponsiveContainer width="100%" height={260}>
-          <BarChart data={DISEASE_CATEGORIES} margin={{ top: 0, right: 16, left: 0, bottom: 24 }}>
-            <CartesianGrid stroke="#E2E8F0" strokeDasharray="3 3" />
-            <XAxis
-              dataKey="category"
-              tick={{ fontSize: 11, fill: "#64748B" }}
-              tickLine={false}
-              axisLine={false}
-              angle={-30}
-              textAnchor="end"
-              interval={0}
-            />
-            <YAxis
-              tick={{ fontSize: 11, fill: "#64748B" }}
-              tickLine={false}
-              axisLine={false}
-              width={48}
-            />
-            <Tooltip content={<ChartTooltipBox />} cursor={{ fill: "#0D9488", fillOpacity: 0.08 }} />
-            <Legend
-              formatter={(v) => <span className="text-xs font-medium text-foreground">{v}</span>}
-              wrapperStyle={{ paddingTop: 12 }}
-            />
-            <Bar dataKey="count" name="Cases" fill="#0D9488" radius={[4, 4, 0, 0]} />
-          </BarChart>
-        </ResponsiveContainer>
+        <div ref={diseaseRef}>
+          <ResponsiveContainer width="100%" height={260}>
+            <BarChart data={DISEASE_CATEGORIES} margin={{ top: 0, right: 16, left: 0, bottom: 24 }}>
+              <CartesianGrid stroke="hsl(var(--border))" strokeDasharray="3 3" />
+              <XAxis
+                dataKey="category"
+                tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }}
+                tickLine={false}
+                axisLine={false}
+                angle={-30}
+                textAnchor="end"
+                interval={0}
+              />
+              <YAxis
+                tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }}
+                tickLine={false}
+                axisLine={false}
+                width={48}
+              />
+              <Tooltip content={<ChartTooltipBox />} cursor={{ fill: "#0D9488", fillOpacity: 0.08 }} />
+              <Legend
+                formatter={(v) => <span className="text-xs font-medium text-foreground">{v}</span>}
+                wrapperStyle={{ paddingTop: 12 }}
+              />
+              <Bar dataKey="count" name="Cases" fill="#0D9488" radius={[4, 4, 0, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
         <p className="mt-2 text-xs text-muted-foreground">
           Aggregated across all reporting hospitals.
         </p>
@@ -171,41 +209,48 @@ export function MinistryDashboard() {
         <div className="rounded-lg border border-border bg-card p-5 shadow-sm">
           <div className="mb-4 flex items-center justify-between">
             <h2 className="text-lg font-semibold text-foreground">Monthly Admissions Trend</h2>
-            <Button variant="ghost" size="sm" className="gap-1.5 text-xs text-muted-foreground">
+            <Button
+              variant="ghost"
+              size="sm"
+              className="gap-1.5 text-xs text-muted-foreground"
+              onClick={() => exportChartAsPng(admissionsRef, "admissions-trend.png")}
+            >
               <Download size={13} /> Export PNG
             </Button>
           </div>
-          <ResponsiveContainer width="100%" height={220}>
-            <LineChart data={MONTHLY_TREND} margin={{ top: 0, right: 16, left: 0, bottom: 0 }}>
-              <CartesianGrid stroke="#E2E8F0" strokeDasharray="3 3" />
-              <XAxis
-                dataKey="month"
-                tick={{ fontSize: 11, fill: "#64748B" }}
-                tickLine={false}
-                axisLine={false}
-              />
-              <YAxis
-                tick={{ fontSize: 11, fill: "#64748B" }}
-                tickLine={false}
-                axisLine={false}
-                width={48}
-              />
-              <Tooltip content={<ChartTooltipBox />} cursor={{ stroke: "#E2E8F0" }} />
-              <Legend
-                formatter={(v) => <span className="text-xs font-medium text-foreground">{v}</span>}
-                wrapperStyle={{ paddingTop: 12 }}
-              />
-              <Line
-                type="monotone"
-                dataKey="admissions"
-                name="Admissions"
-                stroke="#0D9488"
-                strokeWidth={2}
-                dot={{ fill: "#0D9488", r: 4 }}
-                activeDot={{ r: 5 }}
-              />
-            </LineChart>
-          </ResponsiveContainer>
+          <div ref={admissionsRef}>
+            <ResponsiveContainer width="100%" height={220}>
+              <LineChart data={MONTHLY_TREND} margin={{ top: 0, right: 16, left: 0, bottom: 0 }}>
+                <CartesianGrid stroke="hsl(var(--border))" strokeDasharray="3 3" />
+                <XAxis
+                  dataKey="month"
+                  tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }}
+                  tickLine={false}
+                  axisLine={false}
+                />
+                <YAxis
+                  tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }}
+                  tickLine={false}
+                  axisLine={false}
+                  width={48}
+                />
+                <Tooltip content={<ChartTooltipBox />} cursor={{ stroke: "hsl(var(--border))" }} />
+                <Legend
+                  formatter={(v) => <span className="text-xs font-medium text-foreground">{v}</span>}
+                  wrapperStyle={{ paddingTop: 12 }}
+                />
+                <Line
+                  type="monotone"
+                  dataKey="admissions"
+                  name="Admissions"
+                  stroke="#0D9488"
+                  strokeWidth={2}
+                  dot={{ fill: "#0D9488", r: 4 }}
+                  activeDot={{ r: 5 }}
+                />
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
         </div>
 
         {/* Regional Distribution Table */}
