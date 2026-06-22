@@ -1,26 +1,27 @@
 import { useState } from "react"
 import { Link, useParams } from "react-router-dom"
 import {
-  CalendarDays,
-  Phone,
-  MapPin,
-  User,
-  CheckCircle,
-  Clock,
-  XCircle,
-  Pencil,
-  Printer,
-  Plus,
-  Stethoscope,
-  Building2,
-  Pill,
-  AlertTriangle,
-  ChevronRight,
-  Filter,
-  ArrowUp,
   Activity,
+  AlertTriangle,
+  ArrowUp,
+  Building2,
   CalendarCheck,
+  CalendarDays,
+  CheckCircle,
+  ChevronLeft,
+  ChevronRight,
+  Clock,
+  Filter,
+  MapPin,
+  Pencil,
+  Phone,
+  Pill,
+  Plus,
+  Printer,
   ShieldAlert,
+  Stethoscope,
+  User,
+  XCircle,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
@@ -114,18 +115,24 @@ const TIMELINE_EVENTS = [
     title: "Annual Physical",
     date: "Sep 05, 2023",
     status: "Completed",
-    dot: "bg-border",
-    accent: "bg-border",
-    badge: { label: "Appointment", color: "bg-muted text-muted-foreground" },
+    dot: "bg-[#3B82F6]",
+    accent: "bg-[#3B82F6]",
+    badge: { label: "Appointment", color: "bg-[#3B82F6]/10 text-[#3B82F6]" },
   },
 ]
 
 // ── Mock table data ───────────────────────────────────────────────
 
 const MOCK_ENCOUNTERS = [
-  { id: "enc-001", date: "Today, 10:30 AM", complaint: "Stable blood pressure, mild fatigue", clinician: "Dr. Sarah Jenkins", unit: "Cardiology Wing", diagnoses: 2 },
-  { id: "enc-002", date: "Oct 12, 2023",    complaint: "Severe chest pain, shortness of breath",  clinician: "Dr. Sarah Jenkins", unit: "Emergency Dept.",   diagnoses: 1 },
+  { id: "enc-001", date: "Today, 10:30",    complaint: "Stable blood pressure, mild fatigue",                 clinician: "Dr. Sarah Jenkins", unit: "Cardiology Wing",   diagnoses: 2 },
+  { id: "enc-002", date: "Oct 12, 2023",    complaint: "Severe chest pain, shortness of breath",              clinician: "Dr. Sarah Jenkins", unit: "Emergency Dept.",   diagnoses: 1 },
+  { id: "enc-003", date: "Aug 05, 2023",    complaint: "Persistent headache and blurred vision",              clinician: "Dr. Ekane Paul",    unit: "Neurology",         diagnoses: 1 },
+  { id: "enc-004", date: "May 20, 2023",    complaint: "Routine follow-up for hypertension management",       clinician: "Dr. Sarah Jenkins", unit: "Cardiology Wing",   diagnoses: 2 },
+  { id: "enc-005", date: "Feb 14, 2023",    complaint: "Fatigue and swelling in lower limbs",                 clinician: "Dr. Mbi Alice",     unit: "Internal Medicine", diagnoses: 1 },
+  { id: "enc-006", date: "Nov 30, 2022",    complaint: "Annual physical examination and diabetes review",     clinician: "Dr. Sarah Jenkins", unit: "General OPD",       diagnoses: 0 },
 ]
+
+const ENC_PAGE_SIZE = 3
 const MOCK_LABS = [
   { id: "l1", date: "Yesterday", test: "Comprehensive Metabolic Panel", result: "Abnormal", unit: "—",       status: "Abnormal", requestedBy: "Dr. Jenkins" },
   { id: "l2", date: "Oct 12, 2023", test: "Complete Blood Count",           result: "Normal",   unit: "—",       status: "Normal",   requestedBy: "Dr. Jenkins" },
@@ -174,7 +181,7 @@ function TimelineCard({
       {/* Node dot */}
       <div
         className={cn(
-          "absolute -left-[9px] top-1 size-4 rounded-full border-4 border-card",
+          "absolute -left-2.25 top-1 size-4 rounded-full border-4 border-card",
           event.dot
         )}
       />
@@ -198,13 +205,21 @@ function TimelineCard({
               </span>
             </div>
             <p className="mb-4 text-sm leading-relaxed text-muted-foreground">{event.body}</p>
-            <div className="flex items-center gap-4 border-t border-border/50 pt-3 text-xs font-medium">
-              <span className="flex items-center gap-1 text-muted-foreground">
-                <Stethoscope size={14} /> {event.meta![0].label}
-              </span>
-              <span className="flex items-center gap-1 text-muted-foreground">
-                <Building2 size={14} /> {event.meta![1].label}
-              </span>
+            <div className="flex items-center justify-between border-t border-border/50 pt-3 text-xs font-medium">
+              <div className="flex items-center gap-4">
+                <span className="flex items-center gap-1 text-muted-foreground">
+                  <Stethoscope size={14} /> {event.meta![0].label}
+                </span>
+                <span className="flex items-center gap-1 text-muted-foreground">
+                  <Building2 size={14} /> {event.meta![1].label}
+                </span>
+              </div>
+              <Link
+                to={`/patients/${patientId}/encounters/${event.encounterId}`}
+                className="flex items-center gap-1 text-primary hover:underline"
+              >
+                View <ChevronRight size={14} />
+              </Link>
             </div>
           </div>
         )}
@@ -233,7 +248,7 @@ function TimelineCard({
                 </div>
               ))}
             </div>
-            <button className="mt-2 flex items-center gap-1 text-sm font-medium text-primary hover:underline">
+            <button type="button" className="mt-2 flex items-center gap-1 text-sm font-medium text-primary hover:underline">
               View Full Report <ChevronRight size={15} />
             </button>
           </div>
@@ -257,6 +272,11 @@ function TimelineCard({
                 <p className="text-sm font-medium text-foreground">{event.drug!.name}</p>
                 <p className="mt-1 text-xs text-muted-foreground">{event.drug!.instruction}</p>
               </div>
+            </div>
+            <div className="mt-3 flex justify-end border-t border-border/50 pt-3">
+              <button type="button" className="flex items-center gap-1 text-xs font-medium text-primary hover:underline">
+                View <ChevronRight size={14} />
+              </button>
             </div>
           </div>
         )}
@@ -305,9 +325,14 @@ function LabStatus({ status }: { status: string }) {
 export function PatientProfilePage() {
   const { id = "1" } = useParams<{ id: string }>()
   const [activeTab, setActiveTab] = useState<TabId>("Timeline")
+  const [encPage,   setEncPage]   = useState(1)
 
   const patient = MOCK_PATIENT
   const consentRefused = patient.consentStatus === "Refused"
+
+  const encTotalPages = Math.max(1, Math.ceil(MOCK_ENCOUNTERS.length / ENC_PAGE_SIZE))
+  const encStart      = (encPage - 1) * ENC_PAGE_SIZE
+  const encPageRows   = MOCK_ENCOUNTERS.slice(encStart, encStart + ENC_PAGE_SIZE)
 
   return (
     <div className="space-y-6">
@@ -331,30 +356,30 @@ export function PatientProfilePage() {
       {/* ── Two-column layout ── */}
       <div className="flex flex-col items-start gap-6 lg:flex-row">
         {/* ── Left column (sticky) ── */}
-        <div className="flex w-full shrink-0 flex-col gap-6 lg:sticky lg:top-6 lg:w-[320px]">
+        <div className="flex w-full shrink-0 flex-col gap-6 lg:sticky lg:top-6 lg:w-70">
 
           {/* Profile card */}
-          <div className="relative flex flex-col items-center rounded-xl border border-border bg-card p-6 shadow-sm">
+          <div className="relative flex flex-col items-center rounded-lg border border-border bg-card p-6 shadow-sm">
             {/* Consent banner */}
             <ConsentBanner status={patient.consentStatus} />
 
-            {/* Avatar */}
-            <div className="mb-4 mt-4 flex size-24 items-center justify-center rounded-full border-2 border-card bg-primary/10 text-3xl font-bold text-primary">
-              {patient.initials}
-            </div>
-
-            <h2 className="mb-1 text-center text-lg font-semibold text-foreground">{patient.name}</h2>
-            <span className="mb-6 rounded-md bg-muted px-3 py-1 text-xs text-muted-foreground">
-              PID: {patient.pid}
-            </span>
-
-            {/* Consent refused banner */}
+            {/* Consent refused banner — shown immediately below the badge per UI-009 */}
             {consentRefused && (
-              <div className="mb-4 flex w-full items-start gap-2 rounded-md border border-destructive/20 bg-destructive/10 p-3 text-xs text-destructive">
+              <div className="mt-3 flex w-full items-start gap-2 rounded-md border border-destructive/20 bg-destructive/10 p-3 text-xs text-destructive">
                 <ShieldAlert size={14} className="mt-0.5 shrink-0" />
                 Clinical data entry is blocked for this patient due to refused consent.
               </div>
             )}
+
+            {/* Avatar */}
+            <div className="mb-4 mt-4 flex size-24 items-center justify-center rounded-full border-2 border-card bg-primary text-3xl font-bold text-primary-foreground">
+              {patient.initials}
+            </div>
+
+            <h2 className="mb-1 text-center text-xl font-semibold text-foreground">{patient.name}</h2>
+            <span className="mb-6 rounded-md bg-muted px-3 py-1 text-xs text-muted-foreground">
+              PID: {patient.pid}
+            </span>
 
             {/* Details grid */}
             <div className="w-full space-y-3 border-t border-border pt-4">
@@ -381,14 +406,14 @@ export function PatientProfilePage() {
               >
                 <Pencil size={15} /> Update Consent
               </Link>
-              <button className="flex w-full items-center justify-center gap-2 rounded py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted/50">
+              <button type="button" className="flex w-full items-center justify-center gap-2 rounded py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted/50">
                 <Pencil size={15} /> Update Profile
               </button>
             </div>
           </div>
 
           {/* Clinical Markers card */}
-          <div className="overflow-hidden rounded-xl border border-border bg-card shadow-sm">
+          <div className="overflow-hidden rounded-lg border border-border bg-card shadow-sm">
             <div className="flex items-center gap-2 border-b border-border bg-muted/30 px-5 py-3">
               <Activity size={18} className="text-primary" />
               <h3 className="text-sm font-semibold text-foreground">Clinical Markers</h3>
@@ -446,7 +471,7 @@ export function PatientProfilePage() {
         </div>
 
         {/* ── Right column (clinical canvas) ── */}
-        <div className="min-h-[600px] min-w-0 flex-1 overflow-hidden rounded-xl border border-border bg-card shadow-sm">
+        <div className="min-h-150 min-w-0 flex-1 overflow-hidden rounded-lg border border-border bg-card shadow-sm">
           {/* Tab nav */}
           <div className="hide-scrollbar overflow-x-auto border-b border-border">
             <nav className="flex px-4">
@@ -473,24 +498,31 @@ export function PatientProfilePage() {
             <div className="p-6">
               <div className="mb-8 flex items-center justify-between">
                 <h3 className="text-lg font-semibold text-foreground">Clinical History</h3>
-                <button className="flex items-center gap-1 rounded-md border border-border px-3 py-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground">
+                <button type="button" className="flex items-center gap-1 rounded-md border border-border px-3 py-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground">
                   <Filter size={15} /> Filter
                 </button>
               </div>
 
               {/* Timeline */}
-              <div className="relative ml-3 space-y-8 border-l-2 border-border pb-4 md:ml-4">
-                {TIMELINE_EVENTS.map((event) => (
-                  <TimelineCard key={event.id} event={event} patientId={id} />
-                ))}
-              </div>
-
-              {/* Load more */}
-              <div className="mt-4 text-center">
-                <button className="rounded-full border border-primary/20 px-4 py-2 text-sm font-medium text-primary transition-colors hover:bg-primary/5">
-                  Load Older Records
-                </button>
-              </div>
+              {TIMELINE_EVENTS.length === 0 ? (
+                <div className="flex min-h-48 flex-col items-center justify-center gap-3 rounded-lg border border-dashed border-border">
+                  <Activity size={40} className="text-muted-foreground/30" />
+                  <p className="text-sm text-muted-foreground">No clinical records yet.</p>
+                </div>
+              ) : (
+                <>
+                  <div className="relative ml-3 space-y-8 border-l-2 border-border pb-4 md:ml-4">
+                    {TIMELINE_EVENTS.map((event) => (
+                      <TimelineCard key={event.id} event={event} patientId={id} />
+                    ))}
+                  </div>
+                  <div className="mt-4 text-center">
+                    <button type="button" className="rounded-full border border-primary/20 px-4 py-2 text-sm font-medium text-primary transition-colors hover:bg-primary/5">
+                      Load Older Records
+                    </button>
+                  </div>
+                </>
+              )}
             </div>
           )}
 
@@ -507,35 +539,67 @@ export function PatientProfilePage() {
                   </Link>
                 )}
               </div>
-              <div className="overflow-x-auto rounded-lg border border-border">
-                <table className="w-full border-collapse text-left">
-                  <thead>
-                    <tr className="border-b border-border bg-muted">
-                      {["Date", "Presenting Complaint", "Clinician", "Unit", "Diagnoses", "Actions"].map((h) => (
-                        <th key={h} className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">{h}</th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-border">
-                    {MOCK_ENCOUNTERS.map((enc) => (
-                      <tr key={enc.id} className="hover:bg-muted/30">
-                        <td className="px-4 py-3 text-sm text-muted-foreground">{enc.date}</td>
-                        <td className="max-w-xs px-4 py-3 text-sm text-foreground">{enc.complaint}</td>
-                        <td className="px-4 py-3 text-sm text-foreground">{enc.clinician}</td>
-                        <td className="px-4 py-3 text-sm text-foreground">{enc.unit}</td>
-                        <td className="px-4 py-3 text-sm text-muted-foreground">{enc.diagnoses}</td>
-                        <td className="px-4 py-3">
-                          <div className="flex items-center gap-2">
-                            <button className="text-xs font-medium text-primary hover:underline">View</button>
-                            <Link to={`/patients/${id}/amend`} className="text-xs font-medium text-muted-foreground hover:text-foreground hover:underline">
-                              Amend
-                            </Link>
-                          </div>
-                        </td>
+              <div className="overflow-hidden rounded-lg border border-border">
+                <div className="overflow-x-auto">
+                  <table className="w-full border-collapse text-left">
+                    <thead>
+                      <tr className="border-b border-border bg-muted">
+                        {["Date", "Presenting Complaint", "Clinician", "Unit", "Diagnoses", "Actions"].map((h) => (
+                          <th key={h} className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">{h}</th>
+                        ))}
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody className="divide-y divide-border">
+                      {encPageRows.map((enc) => (
+                        <tr key={enc.id} className="hover:bg-muted/30">
+                          <td className="whitespace-nowrap px-4 py-3 text-sm text-muted-foreground">{enc.date}</td>
+                          <td className="max-w-xs px-4 py-3 text-sm text-foreground">{enc.complaint}</td>
+                          <td className="whitespace-nowrap px-4 py-3 text-sm text-foreground">{enc.clinician}</td>
+                          <td className="whitespace-nowrap px-4 py-3 text-sm text-foreground">{enc.unit}</td>
+                          <td className="px-4 py-3 text-sm text-muted-foreground">{enc.diagnoses}</td>
+                          <td className="px-4 py-3">
+                            <div className="flex items-center gap-2">
+                              <Link to={`/patients/${id}/encounters/${enc.id}`} className="text-xs font-medium text-primary hover:underline">
+                                View
+                              </Link>
+                              <Link to={`/patients/${id}/amend`} className="text-xs font-medium text-muted-foreground hover:text-foreground hover:underline">
+                                Amend
+                              </Link>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* Pagination footer */}
+                <div className="flex items-center justify-between border-t border-border px-4 py-3">
+                  <span className="text-xs text-muted-foreground">
+                    {encStart + 1}–{Math.min(encStart + ENC_PAGE_SIZE, MOCK_ENCOUNTERS.length)} of {MOCK_ENCOUNTERS.length}
+                  </span>
+                  <div className="flex items-center gap-1">
+                    <button
+                      type="button"
+                      onClick={() => setEncPage(p => Math.max(1, p - 1))}
+                      disabled={encPage <= 1}
+                      className="flex items-center gap-1 rounded border border-border px-2.5 py-1 text-xs text-muted-foreground transition-colors hover:text-foreground disabled:pointer-events-none disabled:opacity-40"
+                    >
+                      <ChevronLeft size={13} /> Prev
+                    </button>
+                    <span className="min-w-14 text-center text-xs text-muted-foreground">
+                      {encPage} / {encTotalPages}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setEncPage(p => Math.min(encTotalPages, p + 1))}
+                      disabled={encPage >= encTotalPages}
+                      className="flex items-center gap-1 rounded border border-border px-2.5 py-1 text-xs text-muted-foreground transition-colors hover:text-foreground disabled:pointer-events-none disabled:opacity-40"
+                    >
+                      Next <ChevronRight size={13} />
+                    </button>
+                  </div>
+                </div>
               </div>
             </div>
           )}
@@ -569,7 +633,7 @@ export function PatientProfilePage() {
                         <td className="px-4 py-3 text-sm text-muted-foreground">{lab.unit}</td>
                         <td className="px-4 py-3"><LabStatus status={lab.status} /></td>
                         <td className="px-4 py-3 text-sm text-muted-foreground">{lab.requestedBy}</td>
-                        <td className="px-4 py-3"><button className="text-xs font-medium text-primary hover:underline">View</button></td>
+                        <td className="px-4 py-3"><button type="button" className="text-xs font-medium text-primary hover:underline">View</button></td>
                       </tr>
                     ))}
                   </tbody>

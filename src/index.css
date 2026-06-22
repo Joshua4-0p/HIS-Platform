@@ -132,6 +132,12 @@
     }
 }
 
+/* Decorative dot-grid background used by the Regional Coverage card */
+.dot-grid-bg {
+    background-image: radial-gradient(circle, #0D9488 1.5px, transparent 1.5px);
+    background-size: 22px 22px;
+}
+
 /* Auth pages always render in light mode regardless of the app theme */
 .force-light {
     --background: oklch(1 0 0);

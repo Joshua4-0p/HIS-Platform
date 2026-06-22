@@ -5,6 +5,7 @@ import {
   UserPlus,
   CheckCircle,
   Clock,
+  Download,
   XCircle,
   UserX,
   ChevronLeft,
@@ -62,6 +63,27 @@ const STATS = {
     // Registered in the most recent month present in mock data
     return p.registered.startsWith("Aug") || p.registered.startsWith("Jul")
   }).length,
+}
+
+// ── CSV export ────────────────────────────────────────────────────
+
+function exportPatientsCsv(rows: Patient[], filename: string) {
+  const headers = ["Patient ID", "Name", "DOB", "Phone", "Region", "Registered", "Consent Status"]
+  const lines = [
+    headers.join(","),
+    ...rows.map(p =>
+      [p.patientId, p.name, p.dob, p.phone, p.region, p.registered, p.consentStatus]
+        .map(v => `"${v.replace(/"/g, '""')}"`)
+        .join(",")
+    ),
+  ]
+  const blob = new Blob([lines.join("\n")], { type: "text/csv" })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement("a")
+  a.href = url
+  a.download = filename
+  a.click()
+  URL.revokeObjectURL(url)
 }
 
 // ── Stat Card ─────────────────────────────────────────────────────
@@ -172,6 +194,13 @@ export function PatientSearchPage() {
               className="pl-9"
             />
           </div>
+          <button
+            type="button"
+            onClick={() => exportPatientsCsv(filtered, "patients.csv")}
+            className="inline-flex shrink-0 items-center gap-1.5 rounded-md border border-border px-3 py-2 text-sm font-medium text-foreground transition-colors hover:bg-muted"
+          >
+            <Download size={16} /> Export CSV
+          </button>
           <Link to="/patients/new">
             <Button className="gap-2 whitespace-nowrap bg-primary text-primary-foreground hover:bg-primary/90">
               <UserPlus size={16} />

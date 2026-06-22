@@ -23,7 +23,18 @@ Before building any page, load and strictly follow the **HIS Design System** spe
 - **Border radius:** `0.5rem` on all cards, inputs, buttons
 - **Color + Icon rule:** Every clinical state badge must pair an icon with color (never color alone). Use Lucide React icons.
 - **Responsive range:** All pages must render correctly from 768px (tablet) to 1920px (desktop).
-- **Layout shell:** All authenticated pages use the fixed Sidebar (240px) + Topbar (64px) shell defined in the design system.
+- **Layout shell:** All authenticated pages (Phases 2–15) use the fixed Sidebar (240 px) + Topbar (64 px) shell defined in the design system. The page content area sits to the right of the sidebar and below the topbar.
+
+> ### ⚠ STITCH SHELL REMINDER — READ THIS BEFORE DESIGNING ANY AUTHENTICATED PAGE
+>
+> **Google Stitch frequently generates page designs WITHOUT the platform Sidebar and Topbar.** This is always wrong for authenticated pages. Every page in Phases 2–15 MUST include:
+> - **Sidebar (240 px wide, left edge):** HIS Portal logo at top, vertical nav links with the correct active item highlighted in teal, bottom-anchored System Settings link.
+> - **Topbar (64 px tall, top edge):** HIS Portal wordmark on the left, search bar in center, notification bell + user avatar on the right.
+> - **Page content area:** fills the remaining space — width = `100vw − 240 px`, height = `100vh − 64 px`, with `p-6` inner padding.
+>
+> The ONLY exception is Phase 1 (Login, Forgot Password, Reset Password, Register Hospital) — those pages have no shell.
+>
+> **If a Stitch design for Phase 2–15 shows a page without the sidebar and topbar, that design is incomplete. Always add them.**
 
 ---
 
@@ -176,6 +187,8 @@ These are the only pages rendered outside the authenticated shell. No sidebar. N
 
 This phase defines the authenticated application shell that wraps every page in Phases 3–15. Build this shell once and reuse it as the container for all subsequent pages.
 
+**⚠ Stitch shell reminder:** This phase IS the shell itself. When Stitch designs any page from Phase 3 onwards, the Sidebar (240 px) and Topbar (64 px) built here must always be present. Stitch often omits them — never skip them.
+
 ---
 
 ### Page 2.1 — Application Shell (Authenticated Layout)
@@ -249,6 +262,8 @@ Each nav item: Default state `flex items-center gap-3 px-3 py-2 rounded-md text-
 **SRS Coverage:** REQ-F-003, REQ-F-004, REQ-F-006
 
 The Super Admin sees a minimal shell — their role badge shows "Super Admin". Their sidebar shows only: Dashboard, Hospital Registrations, All Hospitals, System Settings.
+
+**⚠ Stitch shell reminder:** Every page in this phase must include the Super Admin Sidebar (240 px) + Topbar (64 px). Stitch often generates these pages without the sidebar and top navigation bar — always add them.
 
 ---
 
@@ -324,6 +339,8 @@ Below: a data table (white card, `shadow-sm`):
 **SRS Coverage:** REQ-F-008, REQ-F-009, REQ-F-010, REQ-F-011, REQ-F-012, REQ-F-013, REQ-F-014
 
 Visible to Hospital Admin only. Sidebar shows: Staff Management, Role Management.
+
+**⚠ Stitch shell reminder:** Every page in this phase must include the platform Sidebar (240 px) + Topbar (64 px). Stitch often omits these — always include them.
 
 ---
 
@@ -432,6 +449,8 @@ Toast on success: "Facility profile updated successfully."
 **Module:** Patients
 **SRS Coverage:** REQ-F-015, REQ-F-016, REQ-F-019, REQ-F-020, REQ-F-021, REQ-F-022, REQ-F-024
 
+**⚠ Stitch shell reminder:** Every page in this phase must include the platform Sidebar (240 px) + Topbar (64 px). Stitch often omits these — always include them.
+
 ---
 
 ### Page 5.1 — Patient Search Page
@@ -512,6 +531,8 @@ Below search: search results area.
 
 **Module:** Patient Profile
 **SRS Coverage:** REQ-F-015, REQ-F-016, REQ-F-017, REQ-F-023, REQ-F-024, REQ-F-025, REQ-F-026, REQ-F-027
+
+**⚠ Stitch shell reminder:** Every page in this phase must include the platform Sidebar (240 px) + Topbar (64 px). Stitch often omits these — always include them.
 
 ---
 
@@ -611,6 +632,8 @@ Active tab underline in teal.
 **Module:** Appointments
 **SRS Coverage:** REQ-F-029, REQ-F-030, REQ-F-031, REQ-F-032, REQ-F-033
 
+**⚠ Stitch shell reminder:** Every page in this phase must include the platform Sidebar (240 px) + Topbar (64 px). Stitch often omits these — always include them.
+
 ---
 
 ### Page 7.1 — Appointment Calendar — Daily View
@@ -676,6 +699,8 @@ If a conflict is detected on selecting the clinician + date + time: an amber ban
 
 **Module:** Clinical Encounter
 **SRS Coverage:** REQ-F-034, REQ-F-035, REQ-F-036, REQ-F-037, REQ-F-038
+
+**⚠ Stitch shell reminder:** Every page in this phase must include the platform Sidebar (240 px) + Topbar (64 px). Stitch often omits these — always include them.
 
 ---
 
@@ -811,6 +836,8 @@ Footer: Cancel + "Submit Lab Request" (teal)
 **Module:** Laboratory
 **SRS Coverage:** REQ-F-039, REQ-F-040, REQ-F-041, REQ-F-042, REQ-F-043
 
+**⚠ Stitch shell reminder:** Every page in this phase must include the platform Sidebar (240 px) + Topbar (64 px). Stitch often omits these — always include them.
+
 ---
 
 ### Page 9.1 — Lab Work Queue
@@ -886,6 +913,8 @@ Amendment history section at bottom (if result has been amended): shows Original
 **Module:** Bulk Upload
 **SRS Coverage:** REQ-F-044, REQ-F-045, REQ-F-046, REQ-F-047, REQ-F-048
 
+**⚠ Stitch shell reminder:** Every page in this phase must include the platform Sidebar (240 px) + Topbar (64 px). Stitch often omits these — always include them.
+
 ---
 
 ### Page 10.1 — Bulk Data Upload Page
@@ -952,6 +981,8 @@ White card below:
 
 **Module:** Transfers
 **SRS Coverage:** REQ-F-049, REQ-F-050, REQ-F-051, REQ-F-052, REQ-F-053, REQ-F-054, REQ-F-055, REQ-F-056, REQ-F-057
+
+**⚠ Stitch shell reminder:** Every page in this phase must include the platform Sidebar (240 px) + Topbar (64 px). Stitch often omits these — always include them.
 
 ---
 
@@ -1085,6 +1116,8 @@ If access type is VIEW_ONLY: disable all "Add", "New", or "Amend" buttons. Show 
 
 Each role's dashboard loads automatically on login (UI-002). All dashboards use the `text-4xl font-bold text-foreground` + `text-sm text-muted-foreground` two-layer metric pattern from the design system.
 
+**⚠ Stitch shell reminder:** Every page in this phase must include the platform Sidebar (240 px) + Topbar (64 px). Stitch often omits these — always include them.
+
 ---
 
 ### Page 12.1 — Doctor Dashboard
@@ -1194,6 +1227,8 @@ Each role's dashboard loads automatically on login (UI-002). All dashboards use 
 **Module:** Analytics
 **SRS Coverage:** REQ-F-061, REQ-F-062, UI-007
 
+**⚠ Stitch shell reminder:** Every page in this phase must include the platform Sidebar (240 px) + Topbar (64 px). Stitch often omits these — always include them.
+
 ---
 
 ### Page 13.1 — Analytics Filter & Query Builder
@@ -1240,6 +1275,8 @@ Filter action row: "Apply Filters" (teal, full width) + "Reset" link
 
 **Module:** Notifications + Audit
 **SRS Coverage:** REQ-F-064, REQ-F-065, REQ-F-068, REQ-F-069, REQ-F-070, REQ-F-071
+
+**⚠ Stitch shell reminder:** Every page in this phase must include the platform Sidebar (240 px) + Topbar (64 px). Stitch often omits these — always include them.
 
 ---
 
@@ -1306,6 +1343,8 @@ Pagination: "Previous" / "Next" with page count.
 
 **Module:** Settings
 **SRS Coverage:** REQ-F-005, REQ-F-013, UI-001
+
+**⚠ Stitch shell reminder:** Every page in this phase must include the platform Sidebar (240 px) + Topbar (64 px). Stitch often omits these — always include them.
 
 ---
 

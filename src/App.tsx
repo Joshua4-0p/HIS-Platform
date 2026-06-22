@@ -36,6 +36,31 @@ import { PatientProfilePage } from "@/pages/patients/patient-profile-page"
 import { UpdateConsentPage } from "@/pages/patients/update-consent-page"
 import { AmendClinicalRecordPage } from "@/pages/patients/amend-clinical-record-page"
 
+// Phase 7 — Appointment Scheduling
+import { AppointmentsPage } from "@/pages/appointments/appointments-page"
+
+// Phase 8 — Clinical Encounter Management
+import { EncountersDashboardPage } from "@/pages/encounters/encounters-dashboard-page"
+import { NewEncounterPage } from "@/pages/encounters/new-encounter-page"
+import { EncounterDetailPage } from "@/pages/encounters/encounter-detail-page"
+
+// Phase 9 — Laboratory Results Management
+import { LabWorkQueuePage }    from "@/pages/laboratory/lab-work-queue-page"
+import { EnterLabResultPage }  from "@/pages/laboratory/enter-lab-result-page"
+import { LabResultDetailPage } from "@/pages/laboratory/lab-result-detail-page"
+
+// Phase 10 — Bulk Data Ingestion
+import { BulkUploadPage } from "@/pages/bulk-upload/bulk-upload-page"
+import { EtlStatusPage }  from "@/pages/bulk-upload/etl-status-page"
+
+// Phase 11 — Cross-Hospital Patient Transfer Workflow
+import { TransferSearchPage }     from "@/pages/transfers/transfer-search-page"
+import { TransferRequestPage }    from "@/pages/transfers/transfer-request-page"
+import { TransferReviewPage }     from "@/pages/transfers/transfer-review-page"
+import { TransfersListPage }      from "@/pages/transfers/transfers-list-page"
+import { TransferredPatientPage } from "@/pages/transfers/transferred-patient-page"
+import { TransferGrantPage }      from "@/pages/transfers/transfer-grant-page"
+
 // ── User presets ──────────────────────────────────────────────
 
 const SUPER_ADMIN_USER: AppUser = {
@@ -68,11 +93,27 @@ export default function App() {
         <Route path="/patients/:id/consent" element={<AppShell><UpdateConsentPage /></AppShell>} />
         <Route path="/patients/:id/amend"   element={<AppShell><AmendClinicalRecordPage /></AppShell>} />
         <Route path="/patients/:id"         element={<AppShell><PatientProfilePage /></AppShell>} />
-        <Route path="/appointments/*" element={<AppShell><Stub title="Appointments" /></AppShell>} />
-        <Route path="/encounters/*"   element={<AppShell><Stub title="Encounters" /></AppShell>} />
-        <Route path="/laboratory/*"   element={<AppShell><Stub title="Laboratory" /></AppShell>} />
-        <Route path="/bulk-upload/*"  element={<AppShell><Stub title="Bulk Upload" /></AppShell>} />
-        <Route path="/transfers/*"    element={<AppShell><Stub title="Patient Transfers" /></AppShell>} />
+        {/* ── Phase 7 — Appointment Scheduling ── */}
+        <Route path="/appointments" element={<AppShell><AppointmentsPage /></AppShell>} />
+        {/* ── Phase 8 — Clinical Encounter Management ── */}
+        <Route path="/patients/:id/encounters/new"          element={<AppShell><NewEncounterPage /></AppShell>} />
+        <Route path="/patients/:id/encounters/:encounterId" element={<AppShell><EncounterDetailPage /></AppShell>} />
+        <Route path="/encounters"     element={<AppShell><EncountersDashboardPage /></AppShell>} />
+        {/* ── Phase 9 — Laboratory Results Management ── */}
+        <Route path="/laboratory/results/new/:requestId" element={<AppShell><EnterLabResultPage /></AppShell>} />
+        <Route path="/laboratory/results/:resultId"      element={<AppShell><LabResultDetailPage /></AppShell>} />
+        <Route path="/laboratory/queue"                  element={<AppShell><LabWorkQueuePage /></AppShell>} />
+        <Route path="/laboratory"                        element={<AppShell><LabWorkQueuePage /></AppShell>} />
+        {/* ── Phase 10 — Bulk Data Ingestion ── */}
+        <Route path="/bulk-upload/status/:jobId" element={<AppShell><EtlStatusPage /></AppShell>} />
+        <Route path="/bulk-upload"               element={<AppShell><BulkUploadPage /></AppShell>} />
+        {/* ── Phase 11 — Cross-Hospital Patient Transfer Workflow ── */}
+        <Route path="/transfers/patients/:patientId" element={<AppShell><TransferredPatientPage /></AppShell>} />
+        <Route path="/transfers/requests/:id"        element={<AppShell><TransferReviewPage /></AppShell>} />
+        <Route path="/transfers/request/new"         element={<AppShell><TransferRequestPage /></AppShell>} />
+        <Route path="/transfers/grant/new"           element={<AppShell><TransferGrantPage /></AppShell>} />
+        <Route path="/transfers/search"              element={<AppShell><TransferSearchPage /></AppShell>} />
+        <Route path="/transfers"                     element={<AppShell><TransfersListPage /></AppShell>} />
         <Route path="/analytics/*"    element={<AppShell><Stub title="Analytics & Reports" /></AppShell>} />
         {/* ── Phase 4 — Staff Management & RBAC ── */}
         <Route path="/staff"              element={<AppShell><StaffListPage /></AppShell>} />

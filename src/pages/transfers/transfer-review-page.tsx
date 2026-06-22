@@ -1,0 +1,202 @@
+import { useState } from "react"
+import { Link, useParams } from "react-router-dom"
+import {
+  ArrowLeft,
+  Building2,
+  CheckCircle,
+  ClipboardList,
+  Clock,
+  ShieldCheck,
+  XCircle,
+} from "lucide-react"
+import { toast } from "sonner"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Separator } from "@/components/ui/separator"
+
+// ── Mock data ─────────────────────────────────────────────────────────────────
+
+const MOCK_REQUEST = {
+  patientName:          "Eleanor Rigby",
+  patientId:            "PT-88492-MR",
+  requestingFacility:   "Northside General Hospital",
+  requestingPhysician:  "Dr. Sarah Jenkins, Cardiology",
+  dateRequested:        "Oct 24, 2023 • 09:41 AM",
+  requestedRecords:     ["Lab Results", "Imaging", "Consult Notes"],
+  reason:
+    "Patient is presenting with acute arrhythmia requiring specialized electrophysiology consultation. Requesting complete cardiac history, recent Holter monitor data, and all relevant lab work from the past 6 months to avoid redundant testing and expedite care plan.",
+}
+
+// ── Page ─────────────────────────────────────────────────────────────────────
+
+export function TransferReviewPage() {
+  const { id } = useParams()
+  const [duration,  setDuration]  = useState("7")
+  const [decision,  setDecision]  = useState<"approved" | "denied" | null>(null)
+  const [loading,   setLoading]   = useState(false)
+
+  void id
+
+  function handleDecision(action: "approved" | "denied") {
+    if (action === "approved" && (!duration || Number(duration) < 1)) {
+      toast.error("Duration required", { description: "Please enter a valid access duration." })
+      return
+    }
+    setLoading(true)
+    setTimeout(() => {
+      setLoading(false)
+      setDecision(action)
+      if (action === "approved") {
+        toast.success("Access granted", { description: `Patient records shared for ${duration} day(s).` })
+      } else {
+        toast.info("Request denied", { description: "The requesting facility has been notified." })
+      }
+    }, 600)
+  }
+
+  return (
+    <div className="space-y-6">
+      {/* Back */}
+      <Link
+        to="/transfers"
+        className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"
+      >
+        <ArrowLeft size={15} /> Patient Transfers
+      </Link>
+
+      {/* Header */}
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-semibold text-foreground">Transfer Access Request</h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Review and manage access request for patient record transfer.
+          </p>
+        </div>
+        {decision ? (
+          <span
+            className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold ${
+              decision === "approved"
+                ? "bg-[#10B981]/10 text-[#10B981]"
+                : "bg-destructive/10 text-destructive"
+            }`}
+          >
+            {decision === "approved" ? (
+              <><CheckCircle size={13} /> Approved</>
+            ) : (
+              <><XCircle size={13} /> Denied</>
+            )}
+          </span>
+        ) : (
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-[#F59E0B]/10 px-3 py-1 text-xs font-semibold text-[#78350F]">
+            <Clock size={13} /> Pending Review
+          </span>
+        )}
+      </div>
+
+      <div className="grid gap-6 lg:grid-cols-3">
+        {/* Request details */}
+        <div className="lg:col-span-2 space-y-5 rounded-lg border border-border bg-card p-6 shadow-sm">
+          <h2 className="flex items-center gap-2 text-sm font-semibold text-foreground">
+            <ClipboardList size={16} className="text-primary" /> Request Details
+          </h2>
+          <Separator />
+          <dl className="grid gap-4 sm:grid-cols-2">
+            {[
+              { label: "Patient Name",          value: MOCK_REQUEST.patientName },
+              { label: "Patient ID",            value: MOCK_REQUEST.patientId },
+              { label: "Requesting Physician",  value: MOCK_REQUEST.requestingPhysician },
+              { label: "Date Requested",        value: MOCK_REQUEST.dateRequested },
+            ].map(({ label, value }) => (
+              <div key={label}>
+                <dt className="text-xs font-medium text-muted-foreground">{label}</dt>
+                <dd className="mt-0.5 text-sm font-medium text-foreground">{value}</dd>
+              </div>
+            ))}
+            <div className="sm:col-span-2">
+              <dt className="text-xs font-medium text-muted-foreground">Requesting Facility</dt>
+              <dd className="mt-0.5 flex items-center gap-1.5 text-sm font-medium text-foreground">
+                <Building2 size={13} className="text-muted-foreground" />
+                {MOCK_REQUEST.requestingFacility}
+              </dd>
+            </div>
+          </dl>
+
+          {/* Requested records */}
+          <div>
+            <p className="mb-2 text-xs font-medium text-muted-foreground">Requested Records</p>
+            <div className="flex flex-wrap gap-2">
+              {MOCK_REQUEST.requestedRecords.map(rec => (
+                <span
+                  key={rec}
+                  className="rounded-full border border-border bg-muted px-2.5 py-0.5 text-xs font-medium text-foreground"
+                >
+                  {rec}
+                </span>
+              ))}
+            </div>
+          </div>
+
+          {/* Reason */}
+          <div>
+            <p className="mb-2 text-xs font-medium text-muted-foreground">Reason for Transfer</p>
+            <blockquote className="rounded-md border-l-4 border-primary bg-muted/40 px-4 py-3 text-sm italic text-foreground">
+              "{MOCK_REQUEST.reason}"
+            </blockquote>
+          </div>
+        </div>
+
+        {/* Decision panel */}
+        <div className="space-y-4 rounded-lg border border-border bg-card p-6 shadow-sm">
+          <h2 className="text-sm font-semibold text-foreground">Decision Panel</h2>
+          <Separator />
+
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-foreground">Grant Access Duration</label>
+            <div className="flex items-center gap-2">
+              <Input
+                type="number"
+                min={1}
+                max={365}
+                value={duration}
+                onChange={e => setDuration(e.target.value)}
+                className="w-24"
+                disabled={!!decision}
+              />
+              <span className="text-sm text-muted-foreground">days</span>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Access will automatically revoke after this period.
+            </p>
+          </div>
+
+          {/* HIPAA badge */}
+          <div className="flex items-center gap-2 rounded-md bg-[#10B981]/10 px-3 py-2">
+            <ShieldCheck size={15} className="text-[#10B981]" />
+            <span className="text-xs font-medium text-[#10B981]">HIPAA Compliant Transfer</span>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            This action will be logged in the audit trail.
+          </p>
+
+          <div className="space-y-2 pt-2">
+            <Button
+              className="w-full gap-2"
+              onClick={() => handleDecision("approved")}
+              disabled={!!decision || loading}
+            >
+              <CheckCircle size={15} /> Approve Access
+            </Button>
+            <Button
+              variant="outline"
+              className="w-full gap-2 border-destructive text-destructive hover:bg-destructive/5"
+              onClick={() => handleDecision("denied")}
+              disabled={!!decision || loading}
+            >
+              <XCircle size={15} /> Deny Request
+            </Button>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}

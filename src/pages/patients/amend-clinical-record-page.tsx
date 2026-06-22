@@ -39,7 +39,7 @@ function LockedField({
   textarea?: boolean
 }) {
   const baseClass =
-    "w-full cursor-not-allowed select-none rounded border border-border bg-muted py-2.5 pl-10 pr-3 text-sm text-muted-foreground focus:outline-none"
+    "w-full cursor-not-allowed select-none rounded border border-border bg-muted py-2.5 pl-10 pr-3 text-sm text-muted-foreground opacity-70 focus:outline-none"
 
   return (
     <div className="flex flex-col gap-1.5">
@@ -56,6 +56,7 @@ function LockedField({
           <textarea
             readOnly
             value={value}
+            title={label}
             className={cn(baseClass, "h-20 resize-none")}
           />
         ) : (
@@ -63,6 +64,7 @@ function LockedField({
             readOnly
             type="text"
             value={value}
+            title={label}
             className={baseClass}
           />
         )}
@@ -109,9 +111,9 @@ export function AmendClinicalRecordPage() {
       {/* ── Back button above form ── */}
       <Link
         to={`/patients/${id}`}
-        className="inline-flex items-center gap-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground"
+        className="inline-flex items-center gap-1.5 text-sm text-primary transition-colors hover:text-primary/80"
       >
-        <ChevronLeft size={16} /> Encounter
+        <ChevronLeft size={16} /> Patient Profile
       </Link>
 
       {/* ── Page title ── */}
@@ -122,16 +124,15 @@ export function AmendClinicalRecordPage() {
         </p>
       </div>
 
-      {/* ── Form card (80 % of content width) ── */}
+      {/* ── Form card ── */}
       <form onSubmit={handleSubmit} noValidate>
-        <div className="mx-auto w-[80%] min-w-[560px] overflow-hidden rounded-lg border border-border bg-card shadow-sm">
+        <div className="overflow-hidden rounded-lg border border-border bg-card shadow-sm">
 
           {/* Amber warning banner */}
           <div className="flex items-start gap-3 border-b border-border bg-[#F59E0B]/8 p-4">
             <AlertTriangle size={18} className="mt-0.5 shrink-0 text-[#F59E0B]" />
             <p className="text-sm text-foreground">
-              You are viewing the original record alongside the proposed amendments. Please ensure
-              all new entries are verified against primary clinical sources before submission.
+              You are viewing the original record. Edits below will create an amendment — the original will be preserved.
             </p>
           </div>
 
@@ -139,7 +140,7 @@ export function AmendClinicalRecordPage() {
           <div className="p-6">
             <div className="mb-6 flex items-center gap-3">
               <h2 className="text-base font-semibold text-foreground">Original Record</h2>
-              <span className="rounded bg-[#F59E0B]/15 px-2 py-0.5 text-xs font-medium uppercase tracking-wider text-[#F59E0B]">
+              <span className="rounded bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">
                 Original
               </span>
             </div>
@@ -179,6 +180,7 @@ export function AmendClinicalRecordPage() {
                 <select
                   value={careUnit}
                   onChange={(e) => setCareUnit(e.target.value)}
+                  title="Care Unit"
                   className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
                 >
                   {CARE_UNITS.map((u) => (

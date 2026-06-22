@@ -114,7 +114,7 @@ export function UpdateConsentPage() {
       </div>
 
       {/* ── Card (75 % of content width, centered) ── */}
-      <div className="mx-auto w-[75%] min-w-[480px]">
+      <div className="max-w-[560px]">
         <div className="rounded-lg border border-border bg-card p-6 shadow-sm">
 
           {/* Current Status */}
