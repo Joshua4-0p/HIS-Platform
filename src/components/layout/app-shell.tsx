@@ -181,17 +181,25 @@ function NotificationPanel({ open, onClose, notifications, onMarkRead, onMarkAll
           )}
         </ScrollArea>
 
-        {/* Footer — "Mark all as read" button */}
-        {unreadCount > 0 && (
-          <div className="shrink-0 border-t border-border p-3">
+        {/* Footer */}
+        <div className="shrink-0 border-t border-border p-3 flex flex-col gap-2">
+          {unreadCount > 0 && (
             <button
+              type="button"
               onClick={onMarkAllRead}
               className="w-full rounded-md border border-border py-2 text-sm font-medium text-foreground transition-colors hover:bg-accent"
             >
               Mark all as read
             </button>
-          </div>
-        )}
+          )}
+          <Link
+            to="/notifications"
+            onClick={onClose}
+            className="w-full rounded-md py-2 text-sm font-medium text-primary text-center transition-colors hover:bg-primary/5"
+          >
+            View All Notifications
+          </Link>
+        </div>
       </div>
     </>
   )

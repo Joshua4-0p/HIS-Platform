@@ -38,6 +38,11 @@ import { AmendClinicalRecordPage } from "@/pages/patients/amend-clinical-record-
 
 // Phase 7 — Appointment Scheduling
 import { AppointmentsPage } from "@/pages/appointments/appointments-page"
+import { CreateAppointmentPage } from "@/pages/appointments/create-appointment-page"
+
+// Phase 14 — Notifications & Clinical Audit Log
+import { NotificationsPage } from "@/pages/notifications/notifications-page"
+import { AuditPage } from "@/pages/audit/audit-page"
 
 // Phase 8 — Clinical Encounter Management
 import { EncountersDashboardPage } from "@/pages/encounters/encounters-dashboard-page"
@@ -52,6 +57,9 @@ import { LabResultDetailPage } from "@/pages/laboratory/lab-result-detail-page"
 // Phase 10 — Bulk Data Ingestion
 import { BulkUploadPage } from "@/pages/bulk-upload/bulk-upload-page"
 import { EtlStatusPage }  from "@/pages/bulk-upload/etl-status-page"
+
+// Phase 13 — Analytics & Filter Query Builder
+import { AnalyticsPage } from "@/pages/analytics/analytics-page"
 
 // Phase 11 — Cross-Hospital Patient Transfer Workflow
 import { TransferSearchPage }     from "@/pages/transfers/transfer-search-page"
@@ -94,6 +102,7 @@ export default function App() {
         <Route path="/patients/:id/amend"   element={<AppShell><AmendClinicalRecordPage /></AppShell>} />
         <Route path="/patients/:id"         element={<AppShell><PatientProfilePage /></AppShell>} />
         {/* ── Phase 7 — Appointment Scheduling ── */}
+        <Route path="/appointments/new" element={<AppShell><CreateAppointmentPage /></AppShell>} />
         <Route path="/appointments" element={<AppShell><AppointmentsPage /></AppShell>} />
         {/* ── Phase 8 — Clinical Encounter Management ── */}
         <Route path="/patients/:id/encounters/new"          element={<AppShell><NewEncounterPage /></AppShell>} />
@@ -114,7 +123,7 @@ export default function App() {
         <Route path="/transfers/grant/new"           element={<AppShell><TransferGrantPage /></AppShell>} />
         <Route path="/transfers/search"              element={<AppShell><TransferSearchPage /></AppShell>} />
         <Route path="/transfers"                     element={<AppShell><TransfersListPage /></AppShell>} />
-        <Route path="/analytics/*"    element={<AppShell><Stub title="Analytics & Reports" /></AppShell>} />
+        <Route path="/analytics"      element={<AppShell><AnalyticsPage /></AppShell>} />
         {/* ── Phase 4 — Staff Management & RBAC ── */}
         <Route path="/staff"              element={<AppShell><StaffListPage /></AppShell>} />
         <Route path="/staff/new"          element={<AppShell><StaffFormPage /></AppShell>} />
@@ -124,8 +133,9 @@ export default function App() {
         <Route path="/settings/profile"   element={<AppShell><Stub title="My Profile" /></AppShell>} />
         <Route path="/settings/password"  element={<AppShell><Stub title="Change Password" /></AppShell>} />
 
-        <Route path="/audit/*"        element={<AppShell><Stub title="Audit Log" /></AppShell>} />
-        <Route path="/notifications"  element={<AppShell><Stub title="Notifications" /></AppShell>} />
+        {/* ── Phase 14 — Notifications & Clinical Audit Log ── */}
+        <Route path="/audit"         element={<AppShell><AuditPage /></AppShell>} />
+        <Route path="/notifications" element={<AppShell><NotificationsPage /></AppShell>} />
 
         {/* ── Super Admin routes — Phase 3 (super-admin shell) ── */}
         <Route

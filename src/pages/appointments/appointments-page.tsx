@@ -1,5 +1,5 @@
 import { useState, useMemo } from "react"
-import { useSearchParams } from "react-router-dom"
+import { Link, useSearchParams } from "react-router-dom"
 import {
   CalendarPlus,
   CalendarX,
@@ -807,13 +807,14 @@ export function AppointmentsPage() {
         </div>
 
         {/* New Appointment */}
-        <Button
-          type="button"
-          className="gap-2 bg-primary text-primary-foreground hover:bg-primary/90"
-          onClick={() => setShowCreate(true)}
-        >
-          <CalendarPlus size={16} /> New Appointment
-        </Button>
+        <Link to="/appointments/new">
+          <Button
+            type="button"
+            className="gap-2 bg-primary text-primary-foreground hover:bg-primary/90"
+          >
+            <CalendarPlus size={16} /> New Appointment
+          </Button>
+        </Link>
       </div>
 
       {/* Filter row */}
