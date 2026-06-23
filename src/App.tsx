@@ -5,7 +5,7 @@ import { Toaster } from "@/components/ui/sonner"
 import { LoginPage } from "@/pages/auth/login-page"
 import { ForgotPasswordPage } from "@/pages/auth/forgot-password-page"
 import { ResetPasswordPage } from "@/pages/auth/reset-password-page"
-import { ChangePasswordPage } from "@/pages/auth/change-password-page"
+import { ChangePasswordPage as ForceChangePasswordPage } from "@/pages/auth/change-password-page"
 import { RegisterHospitalPage } from "@/pages/auth/register-hospital-page"
 import { EmailVerificationPage } from "@/pages/auth/email-verification-page"
 
@@ -25,7 +25,10 @@ import { AllHospitalsPage } from "@/pages/super-admin/all-hospitals-page"
 import { StaffListPage } from "@/pages/staff/staff-list-page"
 import { StaffFormPage } from "@/pages/staff/staff-form-page"
 import { RoleManagementPage } from "@/pages/staff/role-management-page"
-import { FacilitySettingsPage } from "@/pages/settings/facility-settings-page"
+import { FacilitySettingsPage }   from "@/pages/settings/facility-settings-page"
+import { ChangePasswordPage }     from "@/pages/settings/change-password-page"
+import { MyProfilePage }          from "@/pages/settings/my-profile-page"
+import { SystemConfigPage }       from "@/pages/super-admin/system-config-page"
 
 // Phase 5 — Patient Registration & Search
 import { PatientSearchPage } from "@/pages/patients/patient-search-page"
@@ -88,7 +91,7 @@ export default function App() {
         <Route path="/login" element={<LoginPage />} />
         <Route path="/forgot-password" element={<ForgotPasswordPage />} />
         <Route path="/reset-password" element={<ResetPasswordPage />} />
-        <Route path="/change-password" element={<ChangePasswordPage />} />
+        <Route path="/change-password" element={<ForceChangePasswordPage />} />
         <Route path="/register-hospital" element={<RegisterHospitalPage />} />
         <Route path="/verify-email" element={<EmailVerificationPage />} />
 
@@ -98,9 +101,10 @@ export default function App() {
         <Route path="/patients"     element={<AppShell><PatientSearchPage /></AppShell>} />
         <Route path="/patients/new" element={<AppShell><PatientFormPage /></AppShell>} />
         {/* ── Phase 6 — Patient Profile & Consent Management ── */}
-        <Route path="/patients/:id/consent" element={<AppShell><UpdateConsentPage /></AppShell>} />
-        <Route path="/patients/:id/amend"   element={<AppShell><AmendClinicalRecordPage /></AppShell>} />
-        <Route path="/patients/:id"         element={<AppShell><PatientProfilePage /></AppShell>} />
+        <Route path="/patients/:id/consent"                    element={<AppShell><UpdateConsentPage /></AppShell>} />
+        <Route path="/patients/:id/amend/:recordType/:recordId" element={<AppShell><AmendClinicalRecordPage /></AppShell>} />
+        <Route path="/patients/:id/amend"                       element={<AppShell><AmendClinicalRecordPage /></AppShell>} />
+        <Route path="/patients/:id"                             element={<AppShell><PatientProfilePage /></AppShell>} />
         {/* ── Phase 7 — Appointment Scheduling ── */}
         <Route path="/appointments/new" element={<AppShell><CreateAppointmentPage /></AppShell>} />
         <Route path="/appointments" element={<AppShell><AppointmentsPage /></AppShell>} />
@@ -130,8 +134,8 @@ export default function App() {
         <Route path="/staff/:id/edit"     element={<AppShell><StaffFormPage /></AppShell>} />
         <Route path="/staff/roles"        element={<AppShell><RoleManagementPage /></AppShell>} />
         <Route path="/settings/facility"  element={<AppShell><FacilitySettingsPage /></AppShell>} />
-        <Route path="/settings/profile"   element={<AppShell><Stub title="My Profile" /></AppShell>} />
-        <Route path="/settings/password"  element={<AppShell><Stub title="Change Password" /></AppShell>} />
+        <Route path="/settings/profile"   element={<AppShell><MyProfilePage /></AppShell>} />
+        <Route path="/settings/password"  element={<AppShell><ChangePasswordPage /></AppShell>} />
 
         {/* ── Phase 14 — Notifications & Clinical Audit Log ── */}
         <Route path="/audit"         element={<AppShell><AuditPage /></AppShell>} />
@@ -174,7 +178,7 @@ export default function App() {
           path="/super-admin/settings"
           element={
             <AppShell user={SUPER_ADMIN_USER} navVariant="super-admin">
-              <Stub title="System Configuration" />
+              <SystemConfigPage />
             </AppShell>
           }
         />
@@ -186,17 +190,5 @@ export default function App() {
       {/* Global toast notifications */}
       <Toaster position="bottom-right" richColors />
     </BrowserRouter>
-  )
-}
-
-// ── Stub page — replaced when each phase is built ────────────
-function Stub({ title }: { title: string }) {
-  return (
-    <div className="space-y-4">
-      <h1 className="text-2xl font-semibold text-foreground">{title}</h1>
-      <div className="flex min-h-64 items-center justify-center rounded-lg border border-dashed border-border bg-card">
-        <p className="text-sm text-muted-foreground">This module is built in a later phase.</p>
-      </div>
-    </div>
   )
 }

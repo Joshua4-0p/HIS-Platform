@@ -1,3 +1,4 @@
+import { useState } from "react"
 import { Link, useParams } from "react-router-dom"
 import {
   AlertOctagon,
@@ -5,10 +6,21 @@ import {
   ArrowLeft,
   ArrowRight,
   CheckCircle,
+  Download,
   ExternalLink,
+  FileText,
   Pencil,
+  X,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
+
+const MOCK_IS_HOSPITAL_ADMIN = false
 
 // ── Types ───────────────────────────────────────────────────────────────
 
@@ -37,6 +49,7 @@ interface LabResult {
   encPatientId: string
   isOwnResult: boolean
   amendments?: Amendment[]
+  documentUrl?: string
 }
 
 // ── Mock results ────────────────────────────────────────────────────────
@@ -57,6 +70,7 @@ const MOCK_RESULTS: LabResult[] = [
     encounterId: "enc-007",
     encPatientId: "HIS-001234",
     isOwnResult: true,
+    documentUrl: "/documents/lab-result-hba1c-sample.pdf",
   },
   {
     id: "res-002",
@@ -158,6 +172,7 @@ function BreachBox({ status, note }: { status: ResultStatus; note: string }) {
   const isCritical = status === "Critical"
   return (
     <div
+      role="alert"
       className={cn(
         "mt-4 flex items-start gap-3 rounded-md border p-3",
         isCritical
@@ -175,11 +190,71 @@ function BreachBox({ status, note }: { status: ResultStatus; note: string }) {
   )
 }
 
+// ── Document preview dialog ─────────────────────────────────────────────
+
+function DocumentPreviewDialog({
+  open,
+  onClose,
+  documentUrl,
+}: {
+  open: boolean
+  onClose: () => void
+  documentUrl: string
+}) {
+  return (
+    <Dialog open={open} onOpenChange={v => { if (!v) onClose() }}>
+      <DialogContent className="flex h-[85vh] max-w-3xl flex-col gap-0 overflow-hidden p-0">
+        <DialogHeader className="border-b border-border px-6 py-4">
+          <div className="flex items-center justify-between gap-4">
+            <div className="flex items-center gap-2">
+              <FileText size={18} className="text-primary" />
+              <DialogTitle className="text-lg font-semibold">Lab Result Document</DialogTitle>
+            </div>
+            <div className="flex items-center gap-2">
+              <a
+                href={documentUrl}
+                download
+                className="inline-flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-sm font-medium text-foreground transition-colors hover:bg-muted"
+              >
+                <Download size={14} /> Download
+              </a>
+              <a
+                href={documentUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-sm font-medium text-foreground transition-colors hover:bg-muted"
+              >
+                <ExternalLink size={14} /> Open in New Tab
+              </a>
+              <button
+                type="button"
+                onClick={onClose}
+                className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                aria-label="Close preview"
+              >
+                <X size={16} />
+              </button>
+            </div>
+          </div>
+        </DialogHeader>
+        <div className="flex-1 overflow-hidden bg-muted/20">
+          <iframe
+            src={documentUrl}
+            title="Lab Result Document"
+            className="h-full w-full border-0"
+          />
+        </div>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
 // ── Page ────────────────────────────────────────────────────────────────
 
 export function LabResultDetailPage() {
   const { resultId } = useParams<{ resultId: string }>()
   const result = MOCK_RESULTS.find(r => r.id === resultId)
+  const [showDocPreview, setShowDocPreview] = useState(false)
 
   if (!result) {
     return (
@@ -260,6 +335,37 @@ export function LabResultDetailPage() {
           <BreachBox status={result.status} note={result.breachNote} />
         )}
 
+        {/* Attached document — shown when a file was uploaded with the result */}
+        {result.documentUrl && (
+          <div className="mt-5 flex items-center justify-between rounded-lg border border-border bg-muted/30 px-4 py-3">
+            <div className="flex items-center gap-3">
+              <div className="flex size-9 items-center justify-center rounded-md bg-primary/10">
+                <FileText size={16} className="text-primary" />
+              </div>
+              <div>
+                <p className="text-sm font-medium text-foreground">Lab Result Document</p>
+                <p className="text-xs text-muted-foreground">PDF attachment · uploaded with this result</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setShowDocPreview(true)}
+                className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
+              >
+                <FileText size={14} /> Preview
+              </button>
+              <a
+                href={result.documentUrl}
+                download
+                className="inline-flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-sm font-medium text-foreground transition-colors hover:bg-muted"
+              >
+                <Download size={14} /> Download
+              </a>
+            </div>
+          </div>
+        )}
+
         <hr className="my-6 border-border" />
 
         {/* Footer row: linked encounter + amend link */}
@@ -275,7 +381,7 @@ export function LabResultDetailPage() {
           </div>
 
           {/* Amend link — only shown for original author or Hospital Admin (REQ-F-028) */}
-          {result.isOwnResult && (
+          {(result.isOwnResult || MOCK_IS_HOSPITAL_ADMIN) && (
             <Link
               to={`/patients/${result.patientId}/amend/lab_result/${result.id}`}
               className="inline-flex items-center gap-1.5 text-sm text-primary underline-offset-4 hover:underline"
@@ -285,6 +391,15 @@ export function LabResultDetailPage() {
           )}
         </div>
       </div>
+
+      {/* Document preview dialog */}
+      {result.documentUrl && (
+        <DocumentPreviewDialog
+          open={showDocPreview}
+          onClose={() => setShowDocPreview(false)}
+          documentUrl={result.documentUrl}
+        />
+      )}
 
       {/* Amendment history — shown only if the result has been amended */}
       {result.amendments && result.amendments.length > 0 && (

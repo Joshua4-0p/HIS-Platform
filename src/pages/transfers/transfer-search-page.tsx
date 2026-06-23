@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useNavigate } from "react-router-dom"
 import { Info, Search, User, UserX } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -30,18 +30,23 @@ export function TransferSearchPage() {
   const [searched, setSearched] = useState(false)
   const [results,  setResults]  = useState<SearchResult[]>([])
 
-  function handleSearch(e: React.FormEvent) {
-    e.preventDefault()
-    if (!fullName.trim()) return
+  useEffect(() => {
+    if (!fullName.trim()) {
+      setResults([])
+      setSearched(false)
+      setLoading(false)
+      return
+    }
     setLoading(true)
     setSearched(false)
-    setTimeout(() => {
-      const query = fullName.toLowerCase()
-      setResults(MOCK_RESULTS.filter(r => r.name.toLowerCase().includes(query)))
+    const timer = setTimeout(() => {
+      const q = fullName.toLowerCase()
+      setResults(MOCK_RESULTS.filter(r => r.name.toLowerCase().includes(q)))
       setLoading(false)
       setSearched(true)
-    }, 700)
-  }
+    }, 300)
+    return () => clearTimeout(timer)
+  }, [fullName])
 
   return (
     <div className="space-y-6">
@@ -66,7 +71,7 @@ export function TransferSearchPage() {
       {/* Search form */}
       <div className="rounded-lg border border-border bg-card p-6 shadow-sm">
         <h2 className="mb-4 text-base font-semibold text-foreground">Patient Lookup</h2>
-        <form onSubmit={handleSearch} className="grid gap-4 sm:grid-cols-2">
+        <div className="grid gap-4 sm:grid-cols-2">
           <div className="space-y-1.5">
             <label className="text-sm font-medium text-foreground">Patient Full Name</label>
             <div className="relative">
@@ -91,12 +96,7 @@ export function TransferSearchPage() {
             />
             <p className="text-xs text-muted-foreground">Helps narrow results for common names.</p>
           </div>
-          <div className="sm:col-span-2">
-            <Button type="submit" className="gap-2" disabled={loading}>
-              <Search size={16} /> Search Network
-            </Button>
-          </div>
-        </form>
+        </div>
       </div>
 
       {/* Loading — skeleton rows */}

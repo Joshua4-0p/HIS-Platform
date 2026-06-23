@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { Link, useLocation, useNavigate } from "react-router-dom"
 import {
   ArrowLeft,
@@ -21,12 +21,33 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip"
+import { cn } from "@/lib/utils"
+
+// ── Mock hospital registry ────────────────────────────────────────────────────
+
+const MOCK_HOSPITALS = [
+  "Douala General Hospital",
+  "Yaoundé Central Hospital",
+  "Bamenda Regional Hospital",
+  "Bafoussam Regional Hospital",
+  "Buea Regional Hospital",
+  "Limbé District Hospital",
+  "Bertoua Regional Hospital",
+  "Ngaoundéré Regional Hospital",
+  "Ebolowa Regional Hospital",
+  "Maroua Regional Hospital",
+  "Garoua Regional Hospital",
+  "Kumba District Hospital",
+  "Kribi District Hospital",
+  "Édéa District Hospital",
+  "Nkongsamba District Hospital",
+]
 
 // ── Page ─────────────────────────────────────────────────────────────────────
 
 export function TransferGrantPage() {
-  const navigate = useNavigate()
-  const location = useLocation()
+  const navigate  = useNavigate()
+  const location  = useLocation()
   const state = location.state as {
     patientName?: string
     patientId?:   string
@@ -37,15 +58,50 @@ export function TransferGrantPage() {
   const patientId   = state?.patientId   ?? "PT-8839201"
   const patientDob  = state?.patientDob  ?? "14/05/1982"
 
-  const [hospital,    setHospital]    = useState("")
+  // Hospital combobox
+  const [hospitalQuery,    setHospitalQuery]    = useState("")
+  const [selectedHospital, setSelectedHospital] = useState("")
+  const [dropdownOpen,     setDropdownOpen]     = useState(false)
+  const comboboxRef = useRef<HTMLDivElement>(null)
+
+  const filteredHospitals = hospitalQuery.trim() === ""
+    ? MOCK_HOSPITALS
+    : MOCK_HOSPITALS.filter(h =>
+        h.toLowerCase().includes(hospitalQuery.toLowerCase())
+      )
+
+  // Close dropdown on outside click
+  useEffect(() => {
+    function handleOutside(e: MouseEvent) {
+      if (comboboxRef.current && !comboboxRef.current.contains(e.target as Node)) {
+        setDropdownOpen(false)
+      }
+    }
+    document.addEventListener("mousedown", handleOutside)
+    return () => document.removeEventListener("mousedown", handleOutside)
+  }, [])
+
+  function selectHospital(name: string) {
+    setSelectedHospital(name)
+    setHospitalQuery(name)
+    setDropdownOpen(false)
+  }
+
+  function clearHospital() {
+    setSelectedHospital("")
+    setHospitalQuery("")
+    setDropdownOpen(false)
+  }
+
+  // Other form fields
   const [accessLevel, setAccessLevel] = useState<"view" | "consult">("view")
   const [duration,    setDuration]    = useState("7")
   const [submitting,  setSubmitting]  = useState(false)
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    if (!hospital.trim()) {
-      toast.error("Hospital required", { description: "Please select a receiving hospital." })
+    if (!selectedHospital) {
+      toast.error("Hospital required", { description: "Please select a receiving hospital from the list." })
       return
     }
     if (!duration || Number(duration) < 1 || Number(duration) > 90) {
@@ -55,8 +111,9 @@ export function TransferGrantPage() {
     setSubmitting(true)
     setTimeout(() => {
       setSubmitting(false)
-      toast.success("Access granted", {
-        description: "The receiving hospital now has access to this patient's records.",
+      toast.success("Access Granted", {
+        description: `${selectedHospital} has been granted ${accessLevel === "view" ? "View Only" : "View & Consult"} access to ${patientName}'s records for ${duration} day${Number(duration) === 1 ? "" : "s"}. The receiving hospital has been notified.`,
+        duration: 6000,
       })
       navigate(-1)
     }, 800)
@@ -79,7 +136,7 @@ export function TransferGrantPage() {
         </h1>
       </div>
 
-      {/* Patient record card — pre-filled from Patient Profile or fallback default */}
+      {/* Patient record card */}
       <div className="rounded-lg border border-border bg-card p-5 shadow-sm">
         <p className="mb-2 text-xs font-medium text-muted-foreground">Patient Record</p>
         <div className="flex items-center gap-3">
@@ -96,32 +153,79 @@ export function TransferGrantPage() {
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-5">
-        {/* Receiving hospital */}
+        {/* Receiving hospital — searchable combobox */}
         <div className="rounded-lg border border-border bg-card p-5 shadow-sm space-y-2">
-          <label htmlFor="hospital" className="text-sm font-semibold text-foreground">
+          <label className="text-sm font-semibold text-foreground">
             Receiving Hospital <span className="text-destructive">*</span>
           </label>
-          <div className="relative flex items-center gap-2">
-            <div className="relative flex-1">
-              <Search size={15} className="pointer-events-none absolute left-3 top-2.5 text-muted-foreground" />
-              <Input
-                id="hospital"
-                placeholder="Search hospital name…"
-                value={hospital}
-                onChange={e => setHospital(e.target.value)}
-                className="pl-9 pr-8"
+          <div className="relative" ref={comboboxRef}>
+            <div className="relative">
+              <Search
+                size={15}
+                className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"
               />
-              {hospital && (
+              <Input
+                placeholder="Search and select a hospital…"
+                value={hospitalQuery}
+                onChange={e => {
+                  setHospitalQuery(e.target.value)
+                  setSelectedHospital("")
+                  setDropdownOpen(true)
+                }}
+                onFocus={() => setDropdownOpen(true)}
+                className={cn(
+                  "pl-9 pr-8",
+                  selectedHospital ? "text-foreground font-medium" : "",
+                )}
+                autoComplete="off"
+              />
+              {hospitalQuery && (
                 <button
                   type="button"
-                  onClick={() => setHospital("")}
-                  className="absolute right-2.5 top-2.5 text-muted-foreground hover:text-foreground"
+                  onClick={clearHospital}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                  aria-label="Clear hospital"
                 >
                   <X size={14} />
                 </button>
               )}
             </div>
+
+            {/* Dropdown list */}
+            {dropdownOpen && (
+              <div className="absolute z-50 mt-1 w-full overflow-hidden rounded-md border border-border bg-popover shadow-lg">
+                {filteredHospitals.length === 0 ? (
+                  <div className="px-4 py-3 text-sm text-muted-foreground">
+                    No hospitals found matching &ldquo;{hospitalQuery}&rdquo;
+                  </div>
+                ) : (
+                  <ul className="max-h-52 overflow-y-auto py-1">
+                    {filteredHospitals.map(name => (
+                      <li key={name}>
+                        <button
+                          type="button"
+                          onMouseDown={e => { e.preventDefault(); selectHospital(name) }}
+                          className={cn(
+                            "w-full px-4 py-2.5 text-left text-sm transition-colors hover:bg-accent",
+                            selectedHospital === name
+                              ? "bg-primary/10 font-medium text-primary"
+                              : "text-foreground",
+                          )}
+                        >
+                          {name}
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            )}
           </div>
+          {selectedHospital && (
+            <p className="text-xs text-muted-foreground">
+              Selected: <span className="font-medium text-primary">{selectedHospital}</span>
+            </p>
+          )}
         </div>
 
         {/* Access level */}
@@ -194,12 +298,13 @@ export function TransferGrantPage() {
           </p>
         </div>
 
-        {/* Info note — teal per design spec */}
+        {/* Info note */}
         <div className="flex gap-2 rounded-lg border border-[#0D9488] bg-[#0D9488]/10 p-4">
           <Info size={15} className="mt-0.5 shrink-0 text-[#0D9488]" />
           <p className="text-sm text-foreground">
             This grants immediate access to the selected hospital&apos;s clinical staff to view this
-            patient&apos;s historical and active laboratory results across the network.
+            patient&apos;s historical and active laboratory results across the network. The receiving
+            hospital will be notified automatically.
           </p>
         </div>
 

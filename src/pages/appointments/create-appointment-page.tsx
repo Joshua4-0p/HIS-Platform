@@ -98,7 +98,7 @@ export function CreateAppointmentPage() {
   }
 
   return (
-    <div className="max-w-2xl mx-auto flex flex-col gap-6">
+    <div className="max-w-160 mx-auto flex flex-col gap-6">
       {/* Back link */}
       <Link
         to="/appointments"
@@ -118,13 +118,16 @@ export function CreateAppointmentPage() {
 
         {/* Conflict warning */}
         {hasConflict && (
-          <div className="bg-amber-50 dark:bg-amber-950/30 border-l-4 border-amber-400 px-6 py-4 flex items-start gap-3">
-            <AlertTriangle size={18} className="text-amber-500 mt-0.5 shrink-0" />
+          <div
+            role="alert"
+            className="border-l-4 border-[#F59E0B] bg-[#F59E0B]/10 px-6 py-4 flex items-start gap-3"
+          >
+            <AlertTriangle size={18} className="mt-0.5 shrink-0 text-[#F59E0B]" />
             <div>
-              <h3 className="text-sm font-bold text-amber-800 dark:text-amber-300">
+              <h3 className="text-sm font-bold text-[#78350F] dark:text-[#F59E0B]">
                 Scheduling Conflict Detected
               </h3>
-              <p className="text-sm text-amber-700 dark:text-amber-400 mt-1">
+              <p className="text-sm text-[#78350F] dark:text-[#F59E0B] mt-1">
                 Dr. Ekane Paul already has an appointment at this time: Ayuk Emmanuel —
                 Consultation, 08:00–08:45. Please select a different time.
               </p>

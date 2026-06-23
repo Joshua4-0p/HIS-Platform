@@ -123,7 +123,10 @@ const MOCK_ENCOUNTER = {
   clinician:          "Dr. Ekane Paul",
   clinicianInitials:  "EP",
   status:             "In Progress",
+  isOwnEncounter:     true,
 }
+
+const MOCK_IS_HOSPITAL_ADMIN = false
 
 const INIT_DIAGNOSES: Diagnosis[] = [
   { id: "d1", condition: "Malaria",          icd10: "B54",   severity: "Moderate", status: "Active",   clinician: "Dr. Ekane Paul", date: "2026-06-18" },
@@ -1055,12 +1058,14 @@ export function EncounterDetailPage() {
               {enc.clinician} · {enc.unit}
             </p>
           </div>
-          <button
-            type="button"
-            className="flex shrink-0 items-center gap-2 rounded-lg border border-border bg-card px-4 py-2 text-sm font-medium text-foreground transition-colors hover:bg-muted"
-          >
-            <Pencil size={16} /> Amend this Encounter
-          </button>
+          {(enc.isOwnEncounter || MOCK_IS_HOSPITAL_ADMIN) && (
+            <Link
+              to={`/patients/${id}/amend/encounter/${enc.id}`}
+              className="flex shrink-0 items-center gap-2 rounded-lg border border-border bg-card px-4 py-2 text-sm font-medium text-foreground transition-colors hover:bg-muted"
+            >
+              <Pencil size={16} /> Amend this Encounter
+            </Link>
+          )}
         </div>
       </div>
 

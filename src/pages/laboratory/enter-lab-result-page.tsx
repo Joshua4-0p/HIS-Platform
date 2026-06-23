@@ -5,7 +5,10 @@ import {
   AlertTriangle,
   ArrowLeft,
   CheckCircle,
+  FileText,
   Lock,
+  Upload,
+  X,
 } from "lucide-react"
 import { toast } from "sonner"
 import { cn } from "@/lib/utils"
@@ -81,6 +84,7 @@ export function EnterLabResultPage() {
 
   const [resultValue, setResultValue] = useState("")
   const [testDate,    setTestDate]    = useState(() => new Date().toISOString().slice(0, 16))
+  const [resultFile,  setResultFile]  = useState<File | null>(null)
 
   const numericValue = parseFloat(resultValue)
   const hasValue     = resultValue !== "" && !isNaN(numericValue)
@@ -219,6 +223,46 @@ export function EnterLabResultPage() {
                 onChange={e => setTestDate(e.target.value)}
                 className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
               />
+            </div>
+
+            {/* Document upload — optional PDF/Word attachment */}
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-foreground">
+                Lab Result Document{" "}
+                <span className="font-normal text-muted-foreground">(optional — PDF or Word)</span>
+              </label>
+              {resultFile ? (
+                <div className="flex items-center gap-3 rounded-md border border-input bg-muted px-4 py-2.5">
+                  <FileText size={16} className="shrink-0 text-primary" />
+                  <span className="flex-1 truncate text-sm text-foreground">{resultFile.name}</span>
+                  <button
+                    type="button"
+                    onClick={() => setResultFile(null)}
+                    className="shrink-0 text-muted-foreground hover:text-foreground"
+                    aria-label="Remove file"
+                  >
+                    <X size={14} />
+                  </button>
+                </div>
+              ) : (
+                <label
+                  htmlFor="result-doc"
+                  className="flex cursor-pointer flex-col items-center justify-center gap-2 rounded-md border-2 border-dashed border-input bg-muted/30 px-4 py-6 transition-colors hover:bg-muted/50"
+                >
+                  <Upload size={24} className="text-muted-foreground" />
+                  <p className="text-sm text-muted-foreground">
+                    Click to upload <span className="font-medium text-primary">PDF or Word</span> document
+                  </p>
+                  <p className="text-xs text-muted-foreground">Max file size: 10 MB</p>
+                  <input
+                    id="result-doc"
+                    type="file"
+                    accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                    className="sr-only"
+                    onChange={e => setResultFile(e.target.files?.[0] ?? null)}
+                  />
+                </label>
+              )}
             </div>
 
             {/* Lab technician – auto-populated, read-only */}

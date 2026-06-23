@@ -49,8 +49,6 @@ function ProcessingState() {
       <p className="mt-6 max-w-sm text-sm text-muted-foreground">
         Do not close this window. You will receive an email notification when processing is complete.
       </p>
-      {/* Demo nav */}
-      <DemoNav />
     </div>
   )
 }
@@ -130,7 +128,6 @@ function ErrorState() {
         </button>
         <Button onClick={() => navigate("/bulk-upload")}>Try Again</Button>
       </div>
-      <DemoNav />
     </div>
   )
 }
@@ -201,30 +198,6 @@ function CompleteState() {
         <Button variant="ghost" className="text-primary" onClick={() => navigate("/bulk-upload")}>
           Upload Another File
         </Button>
-      </div>
-      <DemoNav />
-    </div>
-  )
-}
-
-// ── Demo navigation helper (dev-only) ─────────────────────────────────────────
-
-function DemoNav() {
-  const [, setSearchParams] = useSearchParams()
-  return (
-    <div className="mt-8 border-t border-border pt-4">
-      <p className="mb-2 text-xs text-muted-foreground">Demo state switcher</p>
-      <div className="flex gap-2">
-        {(["processing", "error", "complete"] as JobState[]).map((s) => (
-          <button
-            key={s}
-            type="button"
-            onClick={() => setSearchParams({ state: s })}
-            className="rounded border border-border px-3 py-1 text-xs text-muted-foreground transition-colors hover:bg-muted"
-          >
-            {s}
-          </button>
-        ))}
       </div>
     </div>
   )

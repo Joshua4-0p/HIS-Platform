@@ -2,6 +2,7 @@ import { useState } from "react"
 import { Link, useNavigate, useParams } from "react-router-dom"
 import {
   Activity,
+  AlertCircle,
   AlertTriangle,
   ArrowLeftRight,
   ArrowUp,
@@ -13,6 +14,8 @@ import {
   ChevronRight,
   Clock,
   Filter,
+  FlaskConical,
+  Lock,
   MapPin,
   Pencil,
   Phone,
@@ -24,8 +27,17 @@ import {
   User,
   XCircle,
 } from "lucide-react"
+import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
 import { cn } from "@/lib/utils"
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
 
 // ── Types ─────────────────────────────────────────────────────────
 
@@ -37,6 +49,7 @@ type TabId =
   | "Prescriptions"
   | "Appointments"
   | "Amendments"
+type LabUrgency = "Routine" | "Urgent"
 
 const TABS: TabId[] = [
   "Timeline",
@@ -46,6 +59,12 @@ const TABS: TabId[] = [
   "Appointments",
   "Amendments",
 ]
+
+// ── Modal constants ───────────────────────────────────────────────
+
+const FREQ_OPTIONS  = ["Once daily", "Twice daily", "Three times daily", "Four times daily", "As needed", "Other"]
+const ROUTE_OPTIONS = ["Oral", "Intravenous (IV)", "Intramuscular (IM)", "Topical", "Inhaled", "Other"]
+const LAB_TESTS     = ["Full Blood Count", "Malaria RDT", "Urinalysis", "Blood Glucose", "Liver Function Test", "Renal Function Test", "Chest X-Ray", "ECG", "HbA1c", "Creatinine"]
 
 // ── Mock patient ──────────────────────────────────────────────────
 
@@ -88,6 +107,7 @@ const TIMELINE_EVENTS = [
     type: "Lab",
     title: "Comprehensive Metabolic Panel",
     date: "Yesterday, 14:15 PM",
+    resultId: "res-001",
     labValues: [
       { name: "Fasting Glucose", value: "126", unit: "mg/dL", flag: "critical" },
       { name: "HbA1c", value: "6.8", unit: "%", flag: "abnormal" },
@@ -101,6 +121,7 @@ const TIMELINE_EVENTS = [
     type: "Prescription",
     title: "Medication Adjusted",
     date: "Oct 12, 2023",
+    encounterId: "enc-002",
     drug: {
       name: "Metformin HCL 500mg",
       instruction:
@@ -135,8 +156,8 @@ const MOCK_ENCOUNTERS = [
 
 const ENC_PAGE_SIZE = 3
 const MOCK_LABS = [
-  { id: "l1", date: "Yesterday", test: "Comprehensive Metabolic Panel", result: "Abnormal", unit: "—",       status: "Abnormal", requestedBy: "Dr. Jenkins" },
-  { id: "l2", date: "Oct 12, 2023", test: "Complete Blood Count",           result: "Normal",   unit: "—",       status: "Normal",   requestedBy: "Dr. Jenkins" },
+  { id: "res-001", date: "Yesterday",    test: "Comprehensive Metabolic Panel", result: "Abnormal", unit: "—", status: "Abnormal", requestedBy: "Dr. Jenkins" },
+  { id: "res-003", date: "Oct 12, 2023", test: "Complete Blood Count",          result: "Normal",   unit: "—", status: "Normal",   requestedBy: "Dr. Jenkins" },
 ]
 const MOCK_PRESCRIPTIONS = [
   { id: "rx1", date: "Oct 12, 2023", medication: "Metformin HCL 500mg", dosage: "500 mg", frequency: "Twice daily", route: "Oral", duration: "90 days", prescriber: "Dr. Jenkins" },
@@ -146,7 +167,7 @@ const MOCK_APPOINTMENTS = [
   { id: "a2", datetime: "Sep 05, 2023",     type: "Physical",   clinician: "Dr. Jenkins", unit: "General",    status: "Completed" },
 ]
 
-// ── Consent status badge (left card, full-width) ──────────────────
+// ── Consent status badge ──────────────────────────────────────────
 
 function ConsentBanner({ status }: { status: ConsentStatus }) {
   if (status === "Granted")
@@ -168,7 +189,7 @@ function ConsentBanner({ status }: { status: ConsentStatus }) {
   )
 }
 
-// ── Left-border accent card (timeline) ───────────────────────────
+// ── Timeline card ─────────────────────────────────────────────────
 
 function TimelineCard({
   event,
@@ -216,7 +237,7 @@ function TimelineCard({
                 </span>
               </div>
               <Link
-                to={`/patients/${patientId}/encounters/${event.encounterId}`}
+                to={`/patients/${patientId}/encounters/${(event as { encounterId?: string }).encounterId}`}
                 className="flex items-center gap-1 text-primary hover:underline"
               >
                 View <ChevronRight size={14} />
@@ -249,9 +270,12 @@ function TimelineCard({
                 </div>
               ))}
             </div>
-            <button type="button" className="mt-2 flex items-center gap-1 text-sm font-medium text-primary hover:underline">
+            <Link
+              to={`/laboratory/results/${(event as { resultId?: string }).resultId}`}
+              className="mt-2 flex items-center gap-1 text-sm font-medium text-primary hover:underline"
+            >
               View Full Report <ChevronRight size={15} />
-            </button>
+            </Link>
           </div>
         )}
 
@@ -275,9 +299,12 @@ function TimelineCard({
               </div>
             </div>
             <div className="mt-3 flex justify-end border-t border-border/50 pt-3">
-              <button type="button" className="flex items-center gap-1 text-xs font-medium text-primary hover:underline">
+              <Link
+                to={`/patients/${patientId}/encounters/${(event as { encounterId?: string }).encounterId}`}
+                className="flex items-center gap-1 text-xs font-medium text-primary hover:underline"
+              >
                 View <ChevronRight size={14} />
-              </button>
+              </Link>
             </div>
           </div>
         )}
@@ -321,6 +348,324 @@ function LabStatus({ status }: { status: string }) {
   return <span className="inline-flex items-center rounded-full bg-destructive/10 px-2 py-0.5 text-xs font-medium text-destructive">Critical</span>
 }
 
+// ── Request Lab Test Modal ────────────────────────────────────────
+
+function RequestLabModal({
+  open,
+  onClose,
+}: {
+  open: boolean
+  onClose: () => void
+}) {
+  const [test,      setTest]      = useState("")
+  const [urgency,   setUrgency]   = useState<LabUrgency>("Routine")
+  const [notes,     setNotes]     = useState("")
+  const [submitted, setSubmitted] = useState(false)
+
+  const testErr = submitted && !test
+
+  function reset() { setTest(""); setUrgency("Routine"); setNotes(""); setSubmitted(false) }
+  function handleClose() { reset(); onClose() }
+
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    setSubmitted(true)
+    if (!test) return
+    toast.success("Lab Test Requested", {
+      description: `${test} has been added to the lab work queue.`,
+    })
+    handleClose()
+  }
+
+  const selCls = (err?: boolean) =>
+    cn(
+      "w-full rounded-md border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring",
+      err ? "border-destructive" : "border-input",
+    )
+
+  return (
+    <Dialog open={open} onOpenChange={v => { if (!v) handleClose() }}>
+      <DialogContent className="max-w-sm gap-0 overflow-hidden p-0">
+        <DialogHeader className="border-b border-border px-6 py-4">
+          <div className="flex items-center gap-2">
+            <FlaskConical size={18} className="text-primary" />
+            <DialogTitle className="text-lg font-semibold">Request Lab Test</DialogTitle>
+          </div>
+        </DialogHeader>
+
+        <form onSubmit={handleSubmit} noValidate>
+          <div className="space-y-4 p-6">
+            {/* Test Name */}
+            <div className="flex flex-col gap-1.5">
+              <label className="text-sm font-medium text-foreground">
+                Test Name <span className="text-destructive">*</span>
+              </label>
+              <select
+                value={test}
+                onChange={e => setTest(e.target.value)}
+                title="Test Name"
+                className={selCls(testErr)}
+              >
+                <option value="">Select test...</option>
+                {LAB_TESTS.map(t => (
+                  <option key={t} value={t}>{t}</option>
+                ))}
+              </select>
+              {testErr && (
+                <p className="flex items-center gap-1 text-xs text-destructive">
+                  <AlertCircle size={12} /> Required.
+                </p>
+              )}
+            </div>
+
+            {/* Urgency */}
+            <div className="flex flex-col gap-1.5">
+              <label className="text-sm font-medium text-foreground">Urgency</label>
+              <div className="inline-flex w-full rounded-md border border-input bg-muted p-1">
+                {(["Routine", "Urgent"] as LabUrgency[]).map(o => (
+                  <button
+                    key={o}
+                    type="button"
+                    onClick={() => setUrgency(o)}
+                    className={cn(
+                      "flex-1 rounded-sm py-1.5 text-sm transition-colors",
+                      urgency === o
+                        ? "bg-primary font-medium text-primary-foreground shadow-sm"
+                        : "text-muted-foreground hover:text-foreground",
+                    )}
+                  >
+                    {o}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Notes */}
+            <div className="flex flex-col gap-1.5">
+              <label className="text-sm font-medium text-foreground">
+                Clinical Notes <span className="font-normal text-muted-foreground">(optional)</span>
+              </label>
+              <textarea
+                value={notes}
+                onChange={e => setNotes(e.target.value)}
+                rows={3}
+                placeholder="Additional instructions for the lab technician..."
+                className="w-full resize-none rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+              />
+            </div>
+          </div>
+
+          <DialogFooter className="border-t border-border bg-muted/20 px-6 py-4">
+            <Button type="button" variant="outline" onClick={handleClose}>
+              Cancel
+            </Button>
+            <Button
+              type="submit"
+              className="gap-2 bg-primary text-primary-foreground hover:bg-primary/90"
+            >
+              <FlaskConical size={16} /> Request Test
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+// ── New Prescription Modal ────────────────────────────────────────
+
+function NewPrescriptionModal({
+  open,
+  onClose,
+}: {
+  open: boolean
+  onClose: () => void
+}) {
+  const [medication, setMedication] = useState("")
+  const [dosage,     setDosage]     = useState("")
+  const [frequency,  setFrequency]  = useState("")
+  const [route,      setRoute]      = useState("")
+  const [duration,   setDuration]   = useState("")
+  const [submitted,  setSubmitted]  = useState(false)
+
+  const errs = {
+    medication: submitted && !medication.trim(),
+    dosage:     submitted && !dosage.trim(),
+    frequency:  submitted && !frequency,
+    route:      submitted && !route,
+    duration:   submitted && !duration.trim(),
+  }
+
+  function reset() {
+    setMedication(""); setDosage(""); setFrequency(""); setRoute(""); setDuration(""); setSubmitted(false)
+  }
+  function handleClose() { reset(); onClose() }
+
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    setSubmitted(true)
+    if (!medication.trim() || !dosage.trim() || !frequency || !route || !duration.trim()) return
+    toast.success("Prescription Added", {
+      description: `${medication} ${dosage} has been recorded.`,
+    })
+    handleClose()
+  }
+
+  const selCls = (err?: boolean) =>
+    cn(
+      "w-full rounded-md border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring",
+      err ? "border-destructive" : "border-input",
+    )
+
+  return (
+    <Dialog open={open} onOpenChange={v => { if (!v) handleClose() }}>
+      <DialogContent className="max-w-125 gap-0 overflow-hidden p-0">
+        <DialogHeader className="border-b border-border px-6 py-4">
+          <div className="flex items-center gap-2">
+            <Pill size={18} className="text-primary" />
+            <DialogTitle className="text-lg font-semibold">Write Prescription</DialogTitle>
+          </div>
+        </DialogHeader>
+
+        <form onSubmit={handleSubmit} noValidate>
+          <div className="space-y-4 p-6">
+            {/* Medication */}
+            <div className="flex flex-col gap-1.5">
+              <label className="text-sm font-medium text-foreground">
+                Medication Name <span className="text-destructive">*</span>
+              </label>
+              <Input
+                placeholder="e.g. Amoxicillin, Paracetamol, Metformin..."
+                value={medication}
+                onChange={e => setMedication(e.target.value)}
+                className={cn(errs.medication && "border-destructive")}
+              />
+              {errs.medication && (
+                <p className="flex items-center gap-1 text-xs text-destructive">
+                  <AlertCircle size={12} /> Required.
+                </p>
+              )}
+            </div>
+
+            {/* Dosage */}
+            <div className="flex flex-col gap-1.5">
+              <label className="text-sm font-medium text-foreground">
+                Dosage <span className="text-destructive">*</span>
+              </label>
+              <Input
+                placeholder="e.g. 500mg, 10ml"
+                value={dosage}
+                onChange={e => setDosage(e.target.value)}
+                className={cn(errs.dosage && "border-destructive")}
+              />
+              {errs.dosage && (
+                <p className="flex items-center gap-1 text-xs text-destructive">
+                  <AlertCircle size={12} /> Required.
+                </p>
+              )}
+            </div>
+
+            {/* Frequency */}
+            <div className="flex flex-col gap-1.5">
+              <label className="text-sm font-medium text-foreground">
+                Frequency <span className="text-destructive">*</span>
+              </label>
+              <select
+                value={frequency}
+                onChange={e => setFrequency(e.target.value)}
+                title="Frequency"
+                className={selCls(errs.frequency)}
+              >
+                <option value="">Select frequency...</option>
+                {FREQ_OPTIONS.map(o => (
+                  <option key={o} value={o}>{o}</option>
+                ))}
+              </select>
+              {errs.frequency && (
+                <p className="flex items-center gap-1 text-xs text-destructive">
+                  <AlertCircle size={12} /> Required.
+                </p>
+              )}
+            </div>
+
+            {/* Route */}
+            <div className="flex flex-col gap-1.5">
+              <label className="text-sm font-medium text-foreground">
+                Route of Administration <span className="text-destructive">*</span>
+              </label>
+              <select
+                value={route}
+                onChange={e => setRoute(e.target.value)}
+                title="Route"
+                className={selCls(errs.route)}
+              >
+                <option value="">Select route...</option>
+                {ROUTE_OPTIONS.map(o => (
+                  <option key={o} value={o}>{o}</option>
+                ))}
+              </select>
+              {errs.route && (
+                <p className="flex items-center gap-1 text-xs text-destructive">
+                  <AlertCircle size={12} /> Required.
+                </p>
+              )}
+            </div>
+
+            {/* Duration */}
+            <div className="flex flex-col gap-1.5">
+              <label className="text-sm font-medium text-foreground">
+                Duration <span className="text-destructive">*</span>
+              </label>
+              <Input
+                placeholder="e.g. 7 days, 2 weeks"
+                value={duration}
+                onChange={e => setDuration(e.target.value)}
+                className={cn(errs.duration && "border-destructive")}
+              />
+              {errs.duration && (
+                <p className="flex items-center gap-1 text-xs text-destructive">
+                  <AlertCircle size={12} /> Required.
+                </p>
+              )}
+            </div>
+
+            {/* Prescribing Clinician (read-only) */}
+            <div className="flex flex-col gap-1.5">
+              <label className="text-sm font-medium text-muted-foreground">
+                Prescribing Clinician
+              </label>
+              <div className="relative flex items-center">
+                <Input
+                  value="Dr. Sarah Jenkins"
+                  readOnly
+                  disabled
+                  className="cursor-not-allowed bg-muted pr-10 opacity-80"
+                />
+                <Lock
+                  size={14}
+                  className="pointer-events-none absolute right-3 text-muted-foreground"
+                />
+              </div>
+            </div>
+          </div>
+
+          <DialogFooter className="border-t border-border bg-muted/20 px-6 py-4">
+            <Button type="button" variant="outline" onClick={handleClose}>
+              Cancel
+            </Button>
+            <Button
+              type="submit"
+              className="gap-2 bg-primary text-primary-foreground hover:bg-primary/90"
+            >
+              <Pill size={16} /> Add Prescription
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
 // ── Page ──────────────────────────────────────────────────────────
 
 export function PatientProfilePage() {
@@ -328,6 +673,9 @@ export function PatientProfilePage() {
   const navigate = useNavigate()
   const [activeTab, setActiveTab] = useState<TabId>("Timeline")
   const [encPage,   setEncPage]   = useState(1)
+
+  const [showLabRequestModal,   setShowLabRequestModal]   = useState(false)
+  const [showPrescriptionModal, setShowPrescriptionModal] = useState(false)
 
   const patient = MOCK_PATIENT
   const consentRefused = patient.consentStatus === "Refused"
@@ -383,7 +731,7 @@ export function PatientProfilePage() {
             {/* Consent banner */}
             <ConsentBanner status={patient.consentStatus} />
 
-            {/* Consent refused banner — shown immediately below the badge per UI-009 */}
+            {/* Consent refused banner */}
             {consentRefused && (
               <div className="mt-3 flex w-full items-start gap-2 rounded-md border border-destructive/20 bg-destructive/10 p-3 text-xs text-destructive">
                 <ShieldAlert size={14} className="mt-0.5 shrink-0" />
@@ -582,7 +930,7 @@ export function PatientProfilePage() {
                               <Link to={`/patients/${id}/encounters/${enc.id}`} className="text-xs font-medium text-primary hover:underline">
                                 View
                               </Link>
-                              <Link to={`/patients/${id}/amend`} className="text-xs font-medium text-muted-foreground hover:text-foreground hover:underline">
+                              <Link to={`/patients/${id}/amend/encounter/${enc.id}`} className="text-xs font-medium text-muted-foreground hover:text-foreground hover:underline">
                                 Amend
                               </Link>
                             </div>
@@ -630,7 +978,12 @@ export function PatientProfilePage() {
               <div className="mb-6 flex items-center justify-between">
                 <h3 className="text-lg font-semibold text-foreground">Lab Results</h3>
                 {!consentRefused && (
-                  <Button size="sm" variant="outline" className="gap-2">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="gap-2"
+                    onClick={() => setShowLabRequestModal(true)}
+                  >
                     <Plus size={14} /> Request Lab
                   </Button>
                 )}
@@ -653,7 +1006,14 @@ export function PatientProfilePage() {
                         <td className="px-4 py-3 text-sm text-muted-foreground">{lab.unit}</td>
                         <td className="px-4 py-3"><LabStatus status={lab.status} /></td>
                         <td className="px-4 py-3 text-sm text-muted-foreground">{lab.requestedBy}</td>
-                        <td className="px-4 py-3"><button type="button" className="text-xs font-medium text-primary hover:underline">View</button></td>
+                        <td className="px-4 py-3">
+                          <Link
+                            to={`/laboratory/results/${lab.id}`}
+                            className="text-xs font-medium text-primary hover:underline"
+                          >
+                            View
+                          </Link>
+                        </td>
                       </tr>
                     ))}
                   </tbody>
@@ -668,7 +1028,12 @@ export function PatientProfilePage() {
               <div className="mb-6 flex items-center justify-between">
                 <h3 className="text-lg font-semibold text-foreground">Prescriptions</h3>
                 {!consentRefused && (
-                  <Button size="sm" variant="outline" className="gap-2">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="gap-2"
+                    onClick={() => setShowPrescriptionModal(true)}
+                  >
                     <Plus size={14} /> New Prescription
                   </Button>
                 )}
@@ -750,6 +1115,16 @@ export function PatientProfilePage() {
           )}
         </div>
       </div>
+
+      {/* ── Modals ── */}
+      <RequestLabModal
+        open={showLabRequestModal}
+        onClose={() => setShowLabRequestModal(false)}
+      />
+      <NewPrescriptionModal
+        open={showPrescriptionModal}
+        onClose={() => setShowPrescriptionModal(false)}
+      />
     </div>
   )
 }

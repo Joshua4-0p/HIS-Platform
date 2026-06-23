@@ -76,7 +76,7 @@ export function TransferredPatientPage() {
             <p className="text-sm font-semibold text-[#78350F] dark:text-[#F59E0B]">
               View-Only Access Expiring
             </p>
-            <p className="text-xs text-[#92400E] dark:text-[#FCD34D]">
+            <p className="text-xs text-[#78350F] dark:text-[#F59E0B]">
               Transfer Access Expires On: {PATIENT.expiresOn}
             </p>
           </div>

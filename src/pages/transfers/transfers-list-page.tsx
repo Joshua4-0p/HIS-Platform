@@ -15,6 +15,17 @@ import {
   XCircle,
 } from "lucide-react"
 import { toast } from "sonner"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog"
 import { Button } from "@/components/ui/button"
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -519,13 +530,36 @@ export function TransfersListPage() {
                             )}
                           </td>
                           <td className="px-4 py-3">
-                            <button
-                              type="button"
-                              onClick={() => handleRevoke(grant)}
-                              className="inline-flex items-center gap-1 rounded-md border border-destructive px-3 py-1.5 text-xs font-medium text-destructive transition-colors hover:bg-destructive/5"
-                            >
-                              <ShieldOff size={12} /> Revoke
-                            </button>
+                            <AlertDialog>
+                              <AlertDialogTrigger asChild>
+                                <button
+                                  type="button"
+                                  className="inline-flex items-center gap-1 rounded-md border border-destructive px-3 py-1.5 text-xs font-medium text-destructive transition-colors hover:bg-destructive/5"
+                                >
+                                  <ShieldOff size={12} /> Revoke
+                                </button>
+                              </AlertDialogTrigger>
+                              <AlertDialogContent>
+                                <AlertDialogHeader>
+                                  <AlertDialogTitle>Revoke Access Grant</AlertDialogTitle>
+                                  <AlertDialogDescription>
+                                    This will immediately revoke{" "}
+                                    <strong>{grant.hospital}</strong>&apos;s access to{" "}
+                                    <strong>{grant.patientName}</strong>&apos;s records.
+                                    Revocation takes effect immediately and cannot be undone.
+                                  </AlertDialogDescription>
+                                </AlertDialogHeader>
+                                <AlertDialogFooter>
+                                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                  <AlertDialogAction
+                                    onClick={() => handleRevoke(grant)}
+                                    className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                  >
+                                    <ShieldOff size={14} className="mr-1.5" /> Revoke Access
+                                  </AlertDialogAction>
+                                </AlertDialogFooter>
+                              </AlertDialogContent>
+                            </AlertDialog>
                           </td>
                         </tr>
                       )
