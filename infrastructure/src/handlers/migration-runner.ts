@@ -569,6 +569,65 @@ const MIGRATIONS: Migration[] = [
       ALTER TABLE hospitals ADD COLUMN IF NOT EXISTS admin_name VARCHAR(255);
     `,
   },
+  {
+    version: 'V16',
+    name: 'V16__seed_default_role_permissions.sql',
+    sql: `
+      INSERT INTO role_permissions (role_id, permission_id)
+      SELECT r.id, p.id
+      FROM roles r
+      CROSS JOIN permissions p
+      WHERE r.name = 'Hospital Admin' AND r.hospital_id IS NULL
+      ON CONFLICT DO NOTHING;
+
+      INSERT INTO role_permissions (role_id, permission_id)
+      SELECT r.id, p.id
+      FROM roles r
+      JOIN permissions p ON p.name = ANY(ARRAY[
+        'patient:read','patient:write','patient:amend','diagnosis:write',
+        'lab_result:read','lab_result:write','prescription:write',
+        'appointment:write','transfer:request'
+      ])
+      WHERE r.name = 'Doctor' AND r.hospital_id IS NULL
+      ON CONFLICT DO NOTHING;
+
+      INSERT INTO role_permissions (role_id, permission_id)
+      SELECT r.id, p.id
+      FROM roles r
+      JOIN permissions p ON p.name = ANY(ARRAY[
+        'patient:read','patient:write','appointment:write','lab_result:read'
+      ])
+      WHERE r.name = 'Nurse' AND r.hospital_id IS NULL
+      ON CONFLICT DO NOTHING;
+
+      INSERT INTO role_permissions (role_id, permission_id)
+      SELECT r.id, p.id
+      FROM roles r
+      JOIN permissions p ON p.name = ANY(ARRAY[
+        'patient:read','lab_result:read','lab_result:write'
+      ])
+      WHERE r.name = 'Laboratory Technician' AND r.hospital_id IS NULL
+      ON CONFLICT DO NOTHING;
+
+      INSERT INTO role_permissions (role_id, permission_id)
+      SELECT r.id, p.id
+      FROM roles r
+      JOIN permissions p ON p.name = ANY(ARRAY[
+        'patient:read','patient:write','appointment:write'
+      ])
+      WHERE r.name = 'Receptionist' AND r.hospital_id IS NULL
+      ON CONFLICT DO NOTHING;
+
+      INSERT INTO role_permissions (role_id, permission_id)
+      SELECT r.id, p.id
+      FROM roles r
+      JOIN permissions p ON p.name = ANY(ARRAY[
+        'patient:read','patient:write','analytics:view'
+      ])
+      WHERE r.name = 'Data Clerk' AND r.hospital_id IS NULL
+      ON CONFLICT DO NOTHING;
+    `,
+  },
 ];
 
 export const handler = async (
@@ -659,7 +718,7 @@ export const handler = async (
       Data: {
         NewlyApplied: String(newlyApplied),
         TotalMigrations: String(MIGRATIONS.length),
-        SchemaVersion: 'V15',
+        SchemaVersion: 'V16',
       },
     };
   } finally {

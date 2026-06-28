@@ -76,9 +76,9 @@ export const handler = async (event: APIGatewayProxyEventV2) => {
                   region_district, created_at, consent_personal_data
            FROM patients
            WHERE hospital_id = $1
-             AND full_name % $2
+             AND (full_name % $2 OR telephone = $2 OR patient_number = $2)
            ORDER BY similarity(full_name, $2) DESC, created_at DESC
-           LIMIT 50`,
+           LIMIT 20`,
           [hospitalId, q],
         );
         patients = res.rows;
@@ -389,6 +389,39 @@ export const handler = async (event: APIGatewayProxyEventV2) => {
       );
       if (check.rows.length === 0) return notFound('Patient not found.');
 
+      // REQ-F-028: only the original record's author OR a Hospital Admin may amend
+      // Each table uses a different column name for the authoring clinician
+      const recordMeta: Record<string, { table: string; authorCol: string }> = {
+        encounter:    { table: 'encounters',    authorCol: 'staff_id' },
+        diagnosis:    { table: 'diagnoses',     authorCol: 'recorded_by' },
+        vital_signs:  { table: 'vital_signs',   authorCol: 'recorded_by' },
+        prescription: { table: 'prescriptions', authorCol: 'prescribing_clinician_id' },
+        lab_result:   { table: 'lab_results',   authorCol: 'lab_technician_id' },
+      };
+      const { table: srcTable, authorCol } = recordMeta[recordType];
+      const originalRes = await pool.query(
+        `SELECT ${authorCol} AS author_id FROM ${srcTable} WHERE id = $1 AND hospital_id = $2`,
+        [recordId, hospitalId],
+      );
+      if (originalRes.rows.length === 0) return notFound('Original record not found.');
+
+      const isAuthor = originalRes.rows[0].author_id === userId;
+      if (!isAuthor) {
+        // Check if user holds Hospital Admin role in this hospital
+        const adminCheck = await pool.query(
+          `SELECT 1
+           FROM user_roles ur
+           JOIN roles r ON r.id = ur.role_id
+           JOIN users u ON u.id = ur.user_id
+           WHERE ur.user_id = $1 AND u.hospital_id = $2 AND r.name = 'Hospital Admin'
+           LIMIT 1`,
+          [userId, hospitalId],
+        );
+        if (adminCheck.rows.length === 0) {
+          return forbidden('Only the original author or a Hospital Admin may amend this record.');
+        }
+      }
+
       const { originalData, amendedData, reason } = body;
 
       if (!originalData || !amendedData || !reason?.trim()) {
@@ -423,8 +456,10 @@ export const handler = async (event: APIGatewayProxyEventV2) => {
     return notFound();
   } catch (err: unknown) {
     const errMsg = err instanceof Error ? err.message : String(err);
-    // Log without a valid userId/hospitalId since we may have failed before extracting claims
     console.error(JSON.stringify({ level: 'ERROR', requestId, message: errMsg }));
+    if (err instanceof Error && (err as Error & { statusCode?: number }).statusCode === 403) {
+      return forbidden();
+    }
     return serverError();
   }
 };

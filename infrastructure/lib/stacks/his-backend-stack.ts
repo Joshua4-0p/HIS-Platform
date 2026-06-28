@@ -497,7 +497,68 @@ export class HisBackendStack extends cdk.Stack {
     }
 
     // =========================================================================
-    // 9. Stack Outputs
+    // 9. Phase 9: appointment-service Lambda (VPC-bound, 4 routes)
+    // Scheduling, conflict detection, cancellation, clinician notifications.
+    // REQ-F-029 to REQ-F-033: appointment CRUD + 409 conflict + appointment_created/cancelled notifications.
+    // =========================================================================
+    const appointmentServiceRole = new iam.Role(this, 'AppointmentServiceRole', {
+      roleName:  'his-appointment-service-role',
+      assumedBy: new iam.ServicePrincipal('lambda.amazonaws.com'),
+      managedPolicies: [
+        iam.ManagedPolicy.fromAwsManagedPolicyName('service-role/AWSLambdaVPCAccessExecutionRole'),
+      ],
+    });
+
+    // IAM DB auth - no Secrets Manager at runtime (REQ-NF-009)
+    appointmentServiceRole.addToPolicy(new iam.PolicyStatement({
+      effect:    iam.Effect.ALLOW,
+      actions:   ['rds-db:connect'],
+      resources: [`arn:aws:rds-db:${this.region}:${account}:dbuser:*/his_app`],
+    }));
+
+    const appointmentServiceFn = new nodejs.NodejsFunction(this, 'AppointmentServiceFn', {
+      functionName: 'his-appointment-service',
+      entry:        path.join(__dirname, '../../lambda/appointment-service/handler.ts'),
+      runtime:      lambda.Runtime.NODEJS_20_X,
+      handler:      'handler',
+      role:         appointmentServiceRole,
+      timeout:      cdk.Duration.seconds(30),
+      memorySize:   512,
+      vpc:          props.vpcStack.vpc,
+      vpcSubnets:   { subnetType: ec2.SubnetType.PRIVATE_ISOLATED },
+      securityGroups: [props.vpcStack.lambdaSg],
+      environment: {
+        RDS_HOSTNAME: props.databaseStack.rdsInstance.dbInstanceEndpointAddress,
+        RDS_PORT:     props.databaseStack.rdsInstance.dbInstanceEndpointPort,
+        RDS_DB_NAME:  'hisdb',
+      },
+      bundling: {
+        minify:          true,
+        sourceMap:       false,
+        externalModules: ['@aws-sdk/*'],
+      },
+    });
+
+    const appointmentIntegration = new apigw2Integrations.HttpLambdaIntegration(
+      'AppointmentIntegration',
+      appointmentServiceFn,
+    );
+
+    for (const { routePath, methods } of [
+      { routePath: '/appointments',             methods: [apigw2.HttpMethod.GET, apigw2.HttpMethod.POST] },
+      { routePath: '/appointments/{id}',        methods: [apigw2.HttpMethod.GET] },
+      { routePath: '/appointments/{id}/cancel', methods: [apigw2.HttpMethod.PUT] },
+    ]) {
+      this.httpApi.addRoutes({
+        path:        routePath,
+        methods,
+        integration: appointmentIntegration,
+        authorizer:  this.cognitoAuthorizer,
+      });
+    }
+
+    // =========================================================================
+    // 10. Stack Outputs
     // =========================================================================
     new cdk.CfnOutput(this, 'ApiGatewayUrl', {
       value:      this.httpApi.apiEndpoint,
