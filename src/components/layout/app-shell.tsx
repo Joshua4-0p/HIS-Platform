@@ -1,5 +1,6 @@
-import { useState, type ReactNode } from "react"
+import { useState, useEffect, useCallback, type ReactNode } from "react"
 import { Link, NavLink, useNavigate } from "react-router-dom"
+import { API_BASE } from "@/lib/api"
 import {
   AlertOctagon,
   ArrowLeftRight,
@@ -207,7 +208,7 @@ function NotificationPanel({ open, onClose, notifications, onMarkRead, onMarkAll
 
 // ── Session Timeout Banner ───────────────────────────────────
 
-function SessionTimeoutBanner({ onDismiss }: { onDismiss: () => void }) {
+function SessionTimeoutBanner({ onStayLoggedIn }: { onStayLoggedIn: () => void }) {
   return (
     <div className="mb-6 flex items-center gap-3 rounded-md border border-[#F59E0B] bg-[#F59E0B]/15 px-4 py-3">
       <AlertOctagon size={16} className="shrink-0 text-[#F59E0B]" />
@@ -218,12 +219,37 @@ function SessionTimeoutBanner({ onDismiss }: { onDismiss: () => void }) {
       <Button
         size="sm"
         className="shrink-0 bg-primary text-primary-foreground hover:bg-primary/90"
-        onClick={onDismiss}
+        onClick={onStayLoggedIn}
       >
         Stay Logged In
       </Button>
     </div>
   )
+}
+
+// ── JWT helpers (browser-safe, no Buffer) ────────────────────
+
+function getTokenExpiry(idToken: string): number | null {
+  try {
+    const b64 = idToken.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')
+    const { exp } = JSON.parse(atob(b64)) as { exp?: number }
+    return exp ?? null
+  } catch {
+    return null
+  }
+}
+
+function storedUser(): AppUser {
+  try {
+    const raw = localStorage.getItem('his_user')
+    if (!raw) return DEFAULT_USER
+    const u = JSON.parse(raw) as { name?: string; role?: string; hospitalId?: string }
+    const name = u.name || 'User'
+    const initials = name.split(' ').map((p: string) => p[0] ?? '').join('').toUpperCase().slice(0, 2) || 'U'
+    return { name, initials, role: u.role || 'Staff', hospital: u.hospitalId }
+  } catch {
+    return DEFAULT_USER
+  }
 }
 
 // ── Topbar ───────────────────────────────────────────────────
@@ -232,10 +258,10 @@ interface TopbarProps {
   user: AppUser
   unreadCount: number
   onBellClick: () => void
+  onLogout: () => void
 }
 
-function Topbar({ user, unreadCount, onBellClick }: TopbarProps) {
-  const navigate = useNavigate()
+function Topbar({ user, unreadCount, onBellClick, onLogout }: TopbarProps) {
   const { theme, setTheme } = useTheme()
   const isDark = theme === "dark"
 
@@ -310,7 +336,7 @@ function Topbar({ user, unreadCount, onBellClick }: TopbarProps) {
             <DropdownMenuSeparator />
             <DropdownMenuItem
               className="cursor-pointer text-destructive focus:text-destructive"
-              onClick={() => navigate("/login")}
+              onClick={onLogout}
             >
               Sign Out
             </DropdownMenuItem>
@@ -326,10 +352,10 @@ function Topbar({ user, unreadCount, onBellClick }: TopbarProps) {
 interface SidebarProps {
   user: AppUser
   navVariant?: "hospital" | "super-admin"
+  onLogout: () => void
 }
 
-function Sidebar({ user, navVariant = "hospital" }: SidebarProps) {
-  const navigate = useNavigate()
+function Sidebar({ user, navVariant = "hospital", onLogout }: SidebarProps) {
   const isSuper = navVariant === "super-admin"
   const items = isSuper ? SUPER_ADMIN_NAV_ITEMS : NAV_ITEMS
 
@@ -420,7 +446,7 @@ function Sidebar({ user, navVariant = "hospital" }: SidebarProps) {
       {/* Bottom — Logout */}
       <div className="shrink-0 border-t border-border px-2 py-2">
         <button
-          onClick={() => navigate("/login")}
+          onClick={onLogout}
           className="flex w-full items-center gap-2.5 rounded-md px-3 py-2 text-sm font-medium text-foreground transition-colors hover:bg-accent"
         >
           <LogOut size={16} className="shrink-0" />
@@ -435,7 +461,7 @@ function Sidebar({ user, navVariant = "hospital" }: SidebarProps) {
 
 interface AppShellProps {
   children: ReactNode
-  user?: AppUser
+  user?: AppUser           // overrides localStorage read; omit to auto-read from stored JWT
   navVariant?: "hospital" | "super-admin"
   showSessionWarning?: boolean
   notifications?: Notification[]
@@ -485,16 +511,77 @@ const DEFAULT_NOTIFICATIONS: Notification[] = [
 
 export function AppShell({
   children,
-  user = DEFAULT_USER,
+  user: userProp,
   navVariant = "hospital",
   showSessionWarning = false,
   notifications: initialNotifications = DEFAULT_NOTIFICATIONS,
 }: AppShellProps) {
+  const navigate = useNavigate()
   const [notifOpen, setNotifOpen] = useState(false)
   const [notifications, setNotifications] = useState<Notification[]>(initialNotifications)
   const [sessionWarning, setSessionWarning] = useState(showSessionWarning)
+  // Read real user from localStorage; fall back to prop then DEFAULT_USER
+  const [resolvedUser] = useState<AppUser>(() => userProp ?? storedUser())
 
   const unreadCount = notifications.filter((n) => !n.read).length
+
+  // ── Logout: invalidate Cognito session, clear storage, redirect ──
+  const handleLogout = useCallback(async () => {
+    const accessToken = localStorage.getItem('his_access_token')
+    if (accessToken) {
+      try {
+        await fetch(`${API_BASE}/auth/logout`, {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+          body: '{}',
+        })
+      } catch { /* always clear locally even if network fails */ }
+    }
+    localStorage.removeItem('his_access_token')
+    localStorage.removeItem('his_id_token')
+    localStorage.removeItem('his_refresh_token')
+    localStorage.removeItem('his_user')
+    navigate('/login')
+  }, [navigate])
+
+  // ── Session timeout: warn 2 min before JWT expiry (UI-008 / COM-003) ──
+  useEffect(() => {
+    const idToken = localStorage.getItem('his_id_token')
+    if (!idToken) return
+    const exp = getTokenExpiry(idToken)
+    if (!exp) return
+    const warnAt = exp * 1000 - 2 * 60 * 1000
+    const delay = warnAt - Date.now()
+    if (delay <= 0) { setSessionWarning(true); return }
+    const timer = setTimeout(() => setSessionWarning(true), delay)
+    return () => clearTimeout(timer)
+  }, [])
+
+  // ── Silent refresh: call /auth/refresh, update tokens, reset warning ──
+  const handleStayLoggedIn = useCallback(async () => {
+    const refreshToken = localStorage.getItem('his_refresh_token')
+    if (!refreshToken) { handleLogout(); return }
+    try {
+      const res = await fetch(`${API_BASE}/auth/refresh`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ refreshToken }),
+      })
+      if (!res.ok) throw new Error('refresh failed')
+      const json = await res.json() as { accessToken: string; idToken: string; expiresIn: number }
+      localStorage.setItem('his_access_token', json.accessToken)
+      localStorage.setItem('his_id_token', json.idToken)
+      setSessionWarning(false)
+      // Re-arm the 2-min warning for the new token
+      const exp = getTokenExpiry(json.idToken)
+      if (exp) {
+        const delay = exp * 1000 - 2 * 60 * 1000 - Date.now()
+        if (delay > 0) setTimeout(() => setSessionWarning(true), delay)
+      }
+    } catch {
+      handleLogout()
+    }
+  }, [handleLogout])
 
   function markRead(id: string) {
     setNotifications((prev) => prev.map((n) => (n.id === id ? { ...n, read: true } : n)))
@@ -506,15 +593,15 @@ export function AppShell({
 
   return (
     <div className="min-h-screen bg-background">
-      <Topbar user={user} unreadCount={unreadCount} onBellClick={() => setNotifOpen((v) => !v)} />
+      <Topbar user={resolvedUser} unreadCount={unreadCount} onBellClick={() => setNotifOpen((v) => !v)} onLogout={handleLogout} />
 
-      <Sidebar user={user} navVariant={navVariant} />
+      <Sidebar user={resolvedUser} navVariant={navVariant} onLogout={handleLogout} />
 
       {/* Main — offset for topbar (pt-14) and sidebar (pl-52) */}
       <main className="min-h-screen pl-60 pt-16">
         <div className="p-6">
           {sessionWarning && (
-            <SessionTimeoutBanner onDismiss={() => setSessionWarning(false)} />
+            <SessionTimeoutBanner onStayLoggedIn={handleStayLoggedIn} />
           )}
           {children}
         </div>

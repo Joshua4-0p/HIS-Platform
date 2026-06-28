@@ -10,7 +10,7 @@ import { RegisterHospitalPage } from "@/pages/auth/register-hospital-page"
 import { EmailVerificationPage } from "@/pages/auth/email-verification-page"
 
 // Authenticated shell — Phase 2
-import { AppShell, type AppUser } from "@/components/layout/app-shell"
+import { AppShell } from "@/components/layout/app-shell"
 
 // Phase 2 — placeholder dashboard (replaced in Phase 12)
 import { DashboardPage } from "@/pages/dashboard/dashboard-page"
@@ -74,11 +74,6 @@ import { TransferGrantPage }      from "@/pages/transfers/transfer-grant-page"
 
 // ── User presets ──────────────────────────────────────────────
 
-const SUPER_ADMIN_USER: AppUser = {
-  name: "System Administrator",
-  initials: "SA",
-  role: "Super Admin",
-}
 
 export default function App() {
   return (
@@ -145,7 +140,7 @@ export default function App() {
         <Route
           path="/super-admin/dashboard"
           element={
-            <AppShell user={SUPER_ADMIN_USER} navVariant="super-admin">
+            <AppShell navVariant="super-admin">
               <SuperAdminDashboardPage />
             </AppShell>
           }
@@ -153,7 +148,7 @@ export default function App() {
         <Route
           path="/super-admin/registrations/:id"
           element={
-            <AppShell user={SUPER_ADMIN_USER} navVariant="super-admin">
+            <AppShell navVariant="super-admin">
               <RegistrationReviewPage />
             </AppShell>
           }
@@ -161,7 +156,7 @@ export default function App() {
         <Route
           path="/super-admin/registrations"
           element={
-            <AppShell user={SUPER_ADMIN_USER} navVariant="super-admin">
+            <AppShell navVariant="super-admin">
               <RegistrationsListPage />
             </AppShell>
           }
@@ -169,7 +164,7 @@ export default function App() {
         <Route
           path="/super-admin/hospitals"
           element={
-            <AppShell user={SUPER_ADMIN_USER} navVariant="super-admin">
+            <AppShell navVariant="super-admin">
               <AllHospitalsPage />
             </AppShell>
           }
@@ -177,7 +172,7 @@ export default function App() {
         <Route
           path="/super-admin/settings"
           element={
-            <AppShell user={SUPER_ADMIN_USER} navVariant="super-admin">
+            <AppShell navVariant="super-admin">
               <SystemConfigPage />
             </AppShell>
           }

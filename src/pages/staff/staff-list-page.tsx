@@ -1,6 +1,6 @@
-import { useState } from "react"
+﻿import { useState, useEffect } from "react"
 import { Link } from "react-router-dom"
-import { UserPlus, Search, Pencil, UserX, CheckCircle, XCircle, ChevronLeft, ChevronRight } from "lucide-react"
+import { UserPlus, Search, Pencil, UserX, CheckCircle, XCircle, ChevronLeft, ChevronRight, Loader2 } from "lucide-react"
 import { toast } from "sonner"
 import { Input } from "@/components/ui/input"
 import {
@@ -14,6 +14,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
 import { cn } from "@/lib/utils"
+import { API_BASE } from "@/lib/api"
 
 // ── Types ─────────────────────────────────────────────────────
 
@@ -29,27 +30,6 @@ interface StaffMember {
   status: StaffStatus
   createdAt: string
 }
-
-// ── Mock data ─────────────────────────────────────────────────
-
-const ALL_STAFF: StaffMember[] = [
-  { id: "1",  initials: "JS", name: "Dr. Jane Smith",     email: "jane.smith@his.med",   role: "Doctor",               region: "North West",  status: "Active",      createdAt: "Oct 12, 2023" },
-  { id: "2",  initials: "MJ", name: "Michael Johnson",   email: "m.johnson@his.med",    role: "Hospital Admin",       region: "Centre",      status: "Active",      createdAt: "Sep 05, 2023" },
-  { id: "3",  initials: "RW", name: "Robert Williams",   email: "r.williams@his.med",   role: "Nurse",                region: "South West",  status: "Deactivated", createdAt: "Jul 22, 2023" },
-  { id: "4",  initials: "EC", name: "Emily Chen",        email: "e.chen@his.med",       role: "Data Clerk",           region: "Littoral",    status: "Active",      createdAt: "Nov 01, 2023" },
-  { id: "5",  initials: "PM", name: "Paul Mbah",         email: "p.mbah@his.med",       role: "Laboratory Tech",      region: "North West",  status: "Active",      createdAt: "Jan 10, 2024" },
-  { id: "6",  initials: "AN", name: "Alice Ngo",         email: "a.ngo@his.med",        role: "Receptionist",         region: "Centre",      status: "Active",      createdAt: "Feb 14, 2024" },
-  { id: "7",  initials: "BF", name: "Bertrand Fouda",    email: "b.fouda@his.med",      role: "Doctor",               region: "Littoral",    status: "Deactivated", createdAt: "Mar 20, 2024" },
-  { id: "8",  initials: "CN", name: "Cécile Nguema",    email: "c.nguema@his.med",     role: "Nurse",                region: "Centre",      status: "Active",      createdAt: "Apr 02, 2024" },
-  { id: "9",  initials: "DT", name: "David Tamba",       email: "d.tamba@his.med",      role: "Laboratory Tech",      region: "West",        status: "Active",      createdAt: "May 17, 2024" },
-  { id: "10", initials: "EK", name: "Eva Kom",           email: "e.kom@his.med",        role: "Data Clerk",           region: "South West",  status: "Active",      createdAt: "Jun 03, 2024" },
-  { id: "11", initials: "FA", name: "Frédéric Abah",   email: "f.abah@his.med",       role: "Hospital Admin",       region: "West",        status: "Active",      createdAt: "Jun 25, 2024" },
-  { id: "12", initials: "GL", name: "Grâce Loko",       email: "g.loko@his.med",       role: "Receptionist",         region: "North",       status: "Active",      createdAt: "Jul 08, 2024" },
-]
-
-const ROLES = ["All Roles", "Hospital Admin", "Doctor", "Nurse", "Laboratory Tech", "Receptionist", "Data Clerk"]
-const REGIONS = ["All Regions", "Centre", "Littoral", "North West", "South West", "West", "North"]
-const STATUSES = ["All Statuses", "Active", "Deactivated"]
 
 const PAGE_SIZE = 8
 
@@ -113,7 +93,6 @@ function DeactivateDialog({
                 <strong className="font-semibold text-foreground">{staff.name}</strong>. This action will
                 immediately revoke their access to the HIS Portal and all associated clinical applications.
               </p>
-              {/* Amber warning box */}
               <div className="flex items-start gap-3 rounded-lg border border-[#F59E0B]/30 bg-[#F59E0B]/10 p-4">
                 <XCircle size={18} className="mt-0.5 shrink-0 text-[#F59E0B]" />
                 <div className="flex flex-col gap-1">
@@ -147,19 +126,33 @@ function DeactivateDialog({
 export function StaffListPage() {
   const [search, setSearch] = useState("")
   const [roleFilter, setRoleFilter] = useState("All Roles")
-  const [regionFilter, setRegionFilter] = useState("All Regions")
   const [statusFilter, setStatusFilter] = useState("All Statuses")
   const [page, setPage] = useState(1)
-  const [staff, setStaff] = useState(ALL_STAFF)
+  const [staff, setStaff] = useState<StaffMember[]>([])
+  const [loading, setLoading] = useState(true)
   const [deactivateTarget, setDeactivateTarget] = useState<StaffMember | null>(null)
+
+  const token = localStorage.getItem("his_id_token")
+
+  useEffect(() => {
+    fetch(`${API_BASE}/staff`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then((r) => r.json())
+      .then((data) => setStaff(data.staff ?? []))
+      .catch(() => toast.error("Failed to load staff members."))
+      .finally(() => setLoading(false))
+  }, [token])
+
+  const roles = ["All Roles", ...Array.from(new Set(staff.map((s) => s.role)))]
+  const statuses = ["All Statuses", "Active", "Deactivated"]
 
   const filtered = staff.filter((s) => {
     const q = search.toLowerCase()
     const matchesSearch = !q || s.name.toLowerCase().includes(q) || s.email.toLowerCase().includes(q)
     const matchesRole = roleFilter === "All Roles" || s.role === roleFilter
-    const matchesRegion = regionFilter === "All Regions" || s.region === regionFilter
     const matchesStatus = statusFilter === "All Statuses" || s.status === statusFilter
-    return matchesSearch && matchesRole && matchesRegion && matchesStatus
+    return matchesSearch && matchesRole && matchesStatus
   })
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
@@ -168,20 +161,33 @@ export function StaffListPage() {
   function resetFilters() {
     setSearch("")
     setRoleFilter("All Roles")
-    setRegionFilter("All Regions")
     setStatusFilter("All Statuses")
     setPage(1)
   }
 
-  function handleDeactivate() {
+  async function handleDeactivate() {
     if (!deactivateTarget) return
-    setStaff((prev) =>
-      prev.map((s) => s.id === deactivateTarget.id ? { ...s, status: "Deactivated" as const } : s)
-    )
-    toast.success("Account Deactivated", {
-      description: `${deactivateTarget.name}'s access has been revoked and all sessions invalidated.`,
-    })
-    setDeactivateTarget(null)
+    try {
+      const res = await fetch(`${API_BASE}/staff/${deactivateTarget.id}/deactivate`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      if (!res.ok) {
+        const json = await res.json()
+        toast.error("Deactivation failed", { description: json.error })
+        return
+      }
+      setStaff((prev) =>
+        prev.map((s) => s.id === deactivateTarget.id ? { ...s, status: "Deactivated" as const } : s)
+      )
+      toast.success("Account Deactivated", {
+        description: `${deactivateTarget.name}'s access has been revoked and all sessions invalidated.`,
+      })
+    } catch {
+      toast.error("Network error. Please try again.")
+    } finally {
+      setDeactivateTarget(null)
+    }
   }
 
   return (
@@ -205,7 +211,6 @@ export function StaffListPage() {
 
       {/* Filter row */}
       <div className="flex flex-wrap items-center gap-3 rounded-lg border border-border bg-card p-4 shadow-sm">
-        {/* Search */}
         <div className="relative min-w-52 flex-1">
           <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
           <Input
@@ -219,38 +224,24 @@ export function StaffListPage() {
 
         <span className="text-sm font-medium text-muted-foreground">Filters:</span>
 
-        {/* Role */}
         <div className="relative min-w-36">
           <select
             value={roleFilter}
             onChange={(e) => { setRoleFilter(e.target.value); setPage(1) }}
             className="w-full appearance-none rounded-lg border border-border bg-background px-3 py-2 pr-8 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
           >
-            {ROLES.map((r) => <option key={r}>{r}</option>)}
+            {roles.map((r) => <option key={r}>{r}</option>)}
           </select>
           <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground">▼</span>
         </div>
 
-        {/* Region */}
-        <div className="relative min-w-36">
-          <select
-            value={regionFilter}
-            onChange={(e) => { setRegionFilter(e.target.value); setPage(1) }}
-            className="w-full appearance-none rounded-lg border border-border bg-background px-3 py-2 pr-8 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
-          >
-            {REGIONS.map((r) => <option key={r}>{r}</option>)}
-          </select>
-          <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground">▼</span>
-        </div>
-
-        {/* Status */}
         <div className="relative min-w-36">
           <select
             value={statusFilter}
             onChange={(e) => { setStatusFilter(e.target.value); setPage(1) }}
             className="w-full appearance-none rounded-lg border border-border bg-background px-3 py-2 pr-8 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
           >
-            {STATUSES.map((s) => <option key={s}>{s}</option>)}
+            {statuses.map((s) => <option key={s}>{s}</option>)}
           </select>
           <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground">▼</span>
         </div>
@@ -266,7 +257,12 @@ export function StaffListPage() {
 
       {/* Table card */}
       <div className="overflow-hidden rounded-lg border border-border bg-card shadow-sm">
-        {paginated.length === 0 ? (
+        {loading ? (
+          <div className="flex items-center justify-center gap-2 py-20 text-muted-foreground">
+            <Loader2 size={20} className="animate-spin" />
+            <span className="text-sm">Loading staff...</span>
+          </div>
+        ) : paginated.length === 0 ? (
           <div className="flex flex-col items-center justify-center gap-3 py-20 text-muted-foreground">
             <Search size={48} className="opacity-25" />
             <p className="text-sm">No staff members found.</p>
@@ -297,7 +293,6 @@ export function StaffListPage() {
                       member.status === "Deactivated" && "text-muted-foreground opacity-60"
                     )}
                   >
-                    {/* Name with avatar */}
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-3">
                         <div className={cn(
@@ -320,7 +315,6 @@ export function StaffListPage() {
                       <StatusBadge status={member.status} />
                     </td>
                     <td className="px-4 py-3 text-sm text-muted-foreground">{member.createdAt}</td>
-                    {/* Actions — always visible */}
                     <td className="px-4 py-3 text-right">
                       <div className="flex items-center justify-end gap-1">
                         <Link
@@ -350,10 +344,10 @@ export function StaffListPage() {
         )}
 
         {/* Pagination */}
-        {filtered.length > 0 && (
+        {filtered.length > 0 && !loading && (
           <div className="flex items-center justify-between border-t border-border bg-card px-6 py-4">
             <span className="text-sm text-muted-foreground">
-              Showing {(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, filtered.length)} of{" "}
+              Showing {(page - 1) * PAGE_SIZE + 1}-{Math.min(page * PAGE_SIZE, filtered.length)} of{" "}
               {filtered.length} results
             </span>
             <div className="flex items-center gap-1">

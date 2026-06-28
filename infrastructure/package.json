@@ -1,0 +1,33 @@
+{
+  "name": "infrastructure",
+  "version": "0.1.0",
+  "scripts": {
+    "build": "tsc",
+    "watch": "tsc -w",
+    "test": "jest",
+    "cdk": "cdk"
+  },
+  "devDependencies": {
+    "@aws-sdk/client-cognito-identity-provider": "^3.1075.0",
+    "@aws-sdk/client-secrets-manager": "^3.1075.0",
+    "@aws-sdk/client-sns": "^3.1075.0",
+    "@aws-sdk/rds-signer": "^3.1075.0",
+    "@types/jest": "^30",
+    "@types/node": "^24.13.2",
+    "aws-cdk": "2.1128.1",
+    "jest": "^30",
+    "ts-jest": "^29",
+    "ts-node": "^10.9.2",
+    "typescript": "~5.9.3"
+  },
+  "dependencies": {
+    "@types/pg": "^8.20.0",
+    "aws-cdk-lib": "^2.260.0",
+    "constructs": "^10.5.0",
+    "esbuild": "^0.28.1",
+    "pg": "^8.22.0",
+    "pg-format": "^1.0.4",
+    "source-map-support": "^0.5.21",
+    "uuid": "^14.0.1"
+  }
+}

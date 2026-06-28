@@ -1,5 +1,5 @@
 import { useState } from "react"
-import { useNavigate } from "react-router-dom"
+import { useNavigate, useLocation } from "react-router-dom"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { AuthLayout, HISLogo } from "@/components/auth/auth-layout"
 import { cn } from "@/lib/utils"
+import { API_BASE } from "@/lib/api"
 import { toast } from "sonner"
 
 const schema = z
@@ -63,11 +64,15 @@ function StrengthBar({ password }: { password: string }) {
 
 export function ChangePasswordPage() {
   const navigate = useNavigate()
+  const location = useLocation()
+  // email + session injected by login page on NEW_PASSWORD_REQUIRED challenge
+  const { email, session } = (location.state ?? {}) as { email?: string; session?: string }
   const [showTemp, setShowTemp] = useState(false)
   const [showNew, setShowNew] = useState(false)
   const [showConfirm, setShowConfirm] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const [newPasswordValue, setNewPasswordValue] = useState("")
+  const [apiError, setApiError] = useState<string | null>(null)
 
   const {
     register,
@@ -75,14 +80,41 @@ export function ChangePasswordPage() {
     formState: { errors },
   } = useForm<FormValues>({ resolver: zodResolver(schema) })
 
-  async function onSubmit(_data: FormValues) {
+  async function onSubmit(data: FormValues) {
     setIsLoading(true)
-    await new Promise((r) => setTimeout(r, 1200))
-    setIsLoading(false)
-    toast.success("Password set successfully", {
-      description: "Your permanent password has been saved. Please sign in.",
-    })
-    navigate("/login")
+    setApiError(null)
+    try {
+      const res = await fetch(`${API_BASE}/auth/change-password`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, session, newPassword: data.newPassword }),
+      })
+      if (!res.ok) {
+        const json = await res.json()
+        setApiError(json.error ?? "Failed to set password. Please try again.")
+        return
+      }
+      const json = await res.json()
+      // Store tokens from the successful challenge response
+      if (json.accessToken) {
+        localStorage.setItem("his_access_token", json.accessToken)
+        localStorage.setItem("his_id_token", json.idToken)
+        localStorage.setItem("his_refresh_token", json.refreshToken)
+        localStorage.setItem("his_user", JSON.stringify(json.user))
+      }
+      toast.success("Password set successfully", {
+        description: "Your permanent password has been saved.",
+      })
+      if (json.user?.isSuperAdmin) {
+        navigate("/super-admin/dashboard")
+      } else {
+        navigate("/dashboard")
+      }
+    } catch {
+      setApiError("Network error. Please check your connection and try again.")
+    } finally {
+      setIsLoading(false)
+    }
   }
 
   return (
@@ -101,6 +133,13 @@ export function ChangePasswordPage() {
           <p className="mb-6 text-sm text-muted-foreground">
             Create a strong permanent password for your account.
           </p>
+
+          {apiError && (
+            <div className="mb-4 flex items-start gap-2 rounded-md border border-destructive bg-destructive/10 p-3 text-sm text-destructive">
+              <AlertCircle className="mt-0.5 size-4 shrink-0" />
+              {apiError}
+            </div>
+          )}
 
           <form onSubmit={handleSubmit(onSubmit)} noValidate className="space-y-4">
             {/* Temp password */}

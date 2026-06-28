@@ -3,7 +3,7 @@ import { Activity } from "lucide-react"
 
 export function AuthLayout({ children }: { children: ReactNode }) {
   return (
-    <div className="force-light min-h-screen bg-[#F8F9FA] flex flex-col items-center justify-center p-4">
+    <div className="force-light min-h-screen bg-[#F8F9FA] flex flex-col items-center justify-center p-4 text-foreground">
       {children}
     </div>
   )

@@ -1,392 +1,310 @@
-<mxfile host="app.diagrams.net" modified="2026-06-17" version="21.0.0">
-  <diagram name="HIS AWS Architecture v2.0" id="his-aws-arch">
-    <mxGraphModel dx="1422" dy="762" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1654" pageHeight="1169" math="0" shadow="0">
+<mxfile host="app.diagrams.net" modified="2026-06-25" version="21.0.0">
+  <diagram name="HIS AWS Architecture v2.1" id="his-aws-arch">
+    <mxGraphModel dx="1200" dy="800" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="960" pageHeight="2400" math="0" shadow="0">
       <root>
         <mxCell id="0" />
         <mxCell id="1" parent="0" />
 
-        <!-- ═══════════════════════════════════════════════════════════ -->
-        <!-- TITLE BLOCK                                                  -->
-        <!-- ═══════════════════════════════════════════════════════════ -->
-        <mxCell id="title" value="HIS — Scalable Cloud-Based Healthcare Architecture (AWS af-south-1)&#xa;University of Buea | SRS v2.0 | 13-Service Architecture" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=16;fontStyle=1;fontColor=#0F172A;" vertex="1" parent="1">
-          <mxGeometry x="40" y="20" width="1560" height="50" as="geometry" />
+        <!-- TITLE -->
+        <mxCell id="title" value="HIS — AWS Architecture (us-east-1) | SRS v2.0 | MVP Build" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=15;fontStyle=1;fontColor=#0F172A;" vertex="1" parent="1">
+          <mxGeometry x="30" y="20" width="900" height="40" as="geometry" />
         </mxCell>
 
-        <!-- ═══════════════════════════════════════════════════════════ -->
-        <!-- CLIENT ZONE                                                  -->
-        <!-- ═══════════════════════════════════════════════════════════ -->
-        <mxCell id="client-zone" value="Client Zone — Hospital Staff (Browser / Tablet)" style="swimlane;startSize=30;fillColor=#f8f9fa;strokeColor=#94a3b8;fontStyle=1;fontSize=11;fontColor=#0F172A;swimlaneLine=1;rounded=1;arcSize=4;" vertex="1" parent="1">
-          <mxGeometry x="40" y="90" width="360" height="160" as="geometry" />
-        </mxCell>
-        <mxCell id="browser" value="Web Browser&#xa;Chrome 90+ / Firefox 88+&#xa;Edge 90+ / Safari 14+&#xa;Min 2 Mbps | 1280×768px" style="shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.general;fillColor=#E2E8F0;strokeColor=#64748B;fontColor=#0F172A;fontSize=10;align=center;verticalAlign=bottom;labelPosition=center;verticalLabelPosition=bottom;" vertex="1" parent="client-zone">
-          <mxGeometry x="60" y="50" width="60" height="60" as="geometry" />
-        </mxCell>
-        <mxCell id="users-label" value="Doctor | Nurse | Lab Tech&#xa;Receptionist | Admin | Ministry" style="text;html=1;strokeColor=none;fillColor=none;align=center;fontSize=9;fontColor=#64748B;" vertex="1" parent="client-zone">
-          <mxGeometry x="140" y="60" width="180" height="40" as="geometry" />
+        <!-- ═══════════════════════════ -->
+        <!-- TIER 0 — PRESENTATION      -->
+        <!-- ═══════════════════════════ -->
+        <mxCell id="tier0" value="TIER 0 — PRESENTATION" style="swimlane;startSize=30;fillColor=#f0fdf4;strokeColor=#0D9488;fontStyle=1;fontSize=11;fontColor=#0D9488;rounded=1;arcSize=3;" vertex="1" parent="1">
+          <mxGeometry x="30" y="80" width="900" height="290" as="geometry" />
         </mxCell>
 
-        <!-- ═══════════════════════════════════════════════════════════ -->
-        <!-- TIER 0 — PRESENTATION                                       -->
-        <!-- ═══════════════════════════════════════════════════════════ -->
-        <mxCell id="tier0" value="TIER 0 — PRESENTATION" style="swimlane;startSize=30;fillColor=#f0fdf4;strokeColor=#0D9488;fontStyle=1;fontSize=12;fontColor=#0D9488;swimlaneLine=1;rounded=1;arcSize=3;" vertex="1" parent="1">
-          <mxGeometry x="460" y="90" width="1140" height="240" as="geometry" />
+        <mxCell id="amplify" value="Amplify&#xa;+ CloudFront" style="shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.amplify;fillColor=#0D9488;strokeColor=#065f46;fontColor=#0F172A;fontSize=10;align=center;verticalAlign=bottom;labelPosition=center;verticalLabelPosition=bottom;" vertex="1" parent="tier0">
+          <mxGeometry x="100" y="65" width="60" height="60" as="geometry" />
         </mxCell>
 
-        <!-- Amplify -->
-        <mxCell id="amplify" value="AWS Amplify&#xa;(+ CloudFront CDN)&#xa;Frontend Hosting&#xa;CI/CD Pipeline" style="shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.amplify;fillColor=#0D9488;strokeColor=#065f46;fontColor=#0F172A;fontSize=10;align=center;verticalAlign=bottom;labelPosition=center;verticalLabelPosition=bottom;" vertex="1" parent="tier0">
-          <mxGeometry x="40" y="60" width="60" height="60" as="geometry" />
+        <mxCell id="apigw" value="API Gateway v2&#xa;HTTP API" style="shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.api_gateway;fillColor=#0D9488;strokeColor=#065f46;fontColor=#0F172A;fontSize=10;align=center;verticalAlign=bottom;labelPosition=center;verticalLabelPosition=bottom;" vertex="1" parent="tier0">
+          <mxGeometry x="400" y="65" width="60" height="60" as="geometry" />
         </mxCell>
 
-        <!-- WAF -->
-        <mxCell id="waf" value="AWS WAF&#xa;OWASP Top 10&#xa;SQL Injection / XSS&#xa;HTTP Flood Block" style="shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.waf;fillColor=#0D9488;strokeColor=#065f46;fontColor=#0F172A;fontSize=10;align=center;verticalAlign=bottom;labelPosition=center;verticalLabelPosition=bottom;" vertex="1" parent="tier0">
-          <mxGeometry x="200" y="60" width="60" height="60" as="geometry" />
+        <mxCell id="cognito" value="Cognito&#xa;User Pools" style="shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.cognito;fillColor=#0D9488;strokeColor=#065f46;fontColor=#0F172A;fontSize=10;align=center;verticalAlign=bottom;labelPosition=center;verticalLabelPosition=bottom;" vertex="1" parent="tier0">
+          <mxGeometry x="700" y="65" width="60" height="60" as="geometry" />
         </mxCell>
 
-        <!-- API Gateway -->
-        <mxCell id="apigw" value="API Gateway v2&#xa;HTTP API&#xa;Single HTTPS Entry Point&#xa;Cognito Authoriser" style="shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.api_gateway;fillColor=#0D9488;strokeColor=#065f46;fontColor=#0F172A;fontSize=10;align=center;verticalAlign=bottom;labelPosition=center;verticalLabelPosition=bottom;" vertex="1" parent="tier0">
-          <mxGeometry x="400" y="60" width="60" height="60" as="geometry" />
+        <mxCell id="waf-deferred" value="⚠ AWS WAF — Production only (not deployed in MVP)&#xa;Compensating controls: API Gateway throttling + Cognito JWT authoriser" style="rounded=1;whiteSpace=wrap;fillColor=#fee2e2;strokeColor=#ef4444;fontSize=9;fontColor=#991b1b;align=center;" vertex="1" parent="tier0">
+          <mxGeometry x="80" y="185" width="740" height="45" as="geometry" />
         </mxCell>
 
-        <!-- Cognito -->
-        <mxCell id="cognito" value="Amazon Cognito&#xa;User Pools&#xa;JWT (RS256, 60 min)&#xa;Silent Refresh" style="shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.cognito;fillColor=#0D9488;strokeColor=#065f46;fontColor=#0F172A;fontSize=10;align=center;verticalAlign=bottom;labelPosition=center;verticalLabelPosition=bottom;" vertex="1" parent="tier0">
-          <mxGeometry x="600" y="60" width="60" height="60" as="geometry" />
+        <mxCell id="t0-note" value="TLS 1.3 enforced at API Gateway (COM-001). JWT RS256, 60-min expiry, silent refresh (COM-003). All API responses: REST + JSON (COM-002)." style="text;html=1;strokeColor=none;fillColor=none;align=left;fontSize=9;fontColor=#475569;fontStyle=2;" vertex="1" parent="tier0">
+          <mxGeometry x="40" y="248" width="820" height="20" as="geometry" />
         </mxCell>
 
-        <!-- Tier 0 annotation -->
-        <mxCell id="tier0-note" value="TLS 1.3 enforced on all inbound connections (COM-001, REQ-NF-008). WAF rejects TLS &lt; 1.3." style="text;html=1;strokeColor=none;fillColor=none;align=left;fontSize=9;fontColor=#64748B;fontStyle=2;" vertex="1" parent="tier0">
-          <mxGeometry x="40" y="185" width="1060" height="20" as="geometry" />
+        <!-- ═══════════════════════════════════════ -->
+        <!-- VPC BOUNDARY                            -->
+        <!-- ═══════════════════════════════════════ -->
+        <mxCell id="vpc" value="AWS VPC — us-east-1" style="swimlane;startSize=28;fillColor=#f8fafc;strokeColor=#64748b;fontStyle=1;fontSize=11;fontColor=#334155;rounded=1;arcSize=2;dashed=1;" vertex="1" parent="1">
+          <mxGeometry x="30" y="390" width="900" height="1020" as="geometry" />
         </mxCell>
 
-
-        <!-- ═══════════════════════════════════════════════════════════ -->
-        <!-- TIER 1 — BACKEND (LAMBDA)                                   -->
-        <!-- ═══════════════════════════════════════════════════════════ -->
-        <mxCell id="tier1" value="TIER 1 — BACKEND (AWS Lambda — Serverless, Auto-Scaling, VPC)" style="swimlane;startSize=30;fillColor=#eff6ff;strokeColor=#3b82f6;fontStyle=1;fontSize=12;fontColor=#1d4ed8;swimlaneLine=1;rounded=1;arcSize=3;" vertex="1" parent="1">
-          <mxGeometry x="460" y="360" width="1140" height="280" as="geometry" />
+        <!-- ═══════════════════════════════════════ -->
+        <!-- PUBLIC SUBNET — LAMBDA                 -->
+        <!-- ═══════════════════════════════════════ -->
+        <mxCell id="pub-subnet" value="Private Isolated Subnets — Lambda Functions (9 VPC-bound | auth-service: No VPC attachment — Cognito access only)" style="swimlane;startSize=28;fillColor=#eff6ff;strokeColor=#3b82f6;fontStyle=1;fontSize=10;fontColor=#1d4ed8;rounded=1;arcSize=2;" vertex="1" parent="vpc">
+          <mxGeometry x="20" y="40" width="860" height="560" as="geometry" />
         </mxCell>
 
-        <!-- Lambda: auth-service -->
-        <mxCell id="lam-auth" value="auth-service&#xa;Login / Logout&#xa;Token Refresh&#xa;Password Reset" style="shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.lambda;fillColor=#3b82f6;strokeColor=#1d4ed8;fontColor=#0F172A;fontSize=9;align=center;verticalAlign=bottom;labelPosition=center;verticalLabelPosition=bottom;" vertex="1" parent="tier1">
+        <!-- Row 1 of Lambda functions -->
+        <mxCell id="lam-auth" value="auth-service&#xa;⚡ No VPC" style="shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.lambda;fillColor=#f0fdf4;strokeColor=#059669;fontColor=#065f46;fontSize=9;align=center;verticalAlign=bottom;labelPosition=center;verticalLabelPosition=bottom;" vertex="1" parent="pub-subnet">
           <mxGeometry x="30" y="55" width="52" height="52" as="geometry" />
         </mxCell>
-
-        <!-- Lambda: hospital-service -->
-        <mxCell id="lam-hospital" value="hospital-service&#xa;Onboarding&#xa;Tenant Mgmt&#xa;Staff RBAC" style="shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.lambda;fillColor=#3b82f6;strokeColor=#1d4ed8;fontColor=#0F172A;fontSize=9;align=center;verticalAlign=bottom;labelPosition=center;verticalLabelPosition=bottom;" vertex="1" parent="tier1">
-          <mxGeometry x="140" y="55" width="52" height="52" as="geometry" />
+        <mxCell id="lam-hospital" value="hospital-service" style="shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.lambda;fillColor=#3b82f6;strokeColor=#1d4ed8;fontColor=#0F172A;fontSize=9;align=center;verticalAlign=bottom;labelPosition=center;verticalLabelPosition=bottom;" vertex="1" parent="pub-subnet">
+          <mxGeometry x="180" y="55" width="52" height="52" as="geometry" />
+        </mxCell>
+        <mxCell id="lam-patient" value="patient-service" style="shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.lambda;fillColor=#3b82f6;strokeColor=#1d4ed8;fontColor=#0F172A;fontSize=9;align=center;verticalAlign=bottom;labelPosition=center;verticalLabelPosition=bottom;" vertex="1" parent="pub-subnet">
+          <mxGeometry x="330" y="55" width="52" height="52" as="geometry" />
+        </mxCell>
+        <mxCell id="lam-appt" value="appointment-service" style="shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.lambda;fillColor=#3b82f6;strokeColor=#1d4ed8;fontColor=#0F172A;fontSize=9;align=center;verticalAlign=bottom;labelPosition=center;verticalLabelPosition=bottom;" vertex="1" parent="pub-subnet">
+          <mxGeometry x="480" y="55" width="52" height="52" as="geometry" />
+        </mxCell>
+        <mxCell id="lam-clinical" value="clinical-service" style="shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.lambda;fillColor=#3b82f6;strokeColor=#1d4ed8;fontColor=#0F172A;fontSize=9;align=center;verticalAlign=bottom;labelPosition=center;verticalLabelPosition=bottom;" vertex="1" parent="pub-subnet">
+          <mxGeometry x="630" y="55" width="52" height="52" as="geometry" />
         </mxCell>
 
-        <!-- Lambda: patient-service (provisioned concurrency) -->
-        <mxCell id="lam-patient" value="patient-service ⚡&#xa;Registration&#xa;Search (pg_trgm)&#xa;Consent / Amend" style="shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.lambda;fillColor=#3b82f6;strokeColor=#1d4ed8;fontColor=#0F172A;fontSize=9;align=center;verticalAlign=bottom;labelPosition=center;verticalLabelPosition=bottom;" vertex="1" parent="tier1">
-          <mxGeometry x="255" y="55" width="52" height="52" as="geometry" />
+        <!-- Lambda SG annotation row 1 -->
+        <mxCell id="sg-ann1" value="Lambda SG (9 VPC-bound): outbound 443 → VPC CIDR only (SNS via VPC Interface Endpoint) | outbound 5432 → RDS SG only | no inbound | auth-service: no VPC — direct Cognito access" style="rounded=1;whiteSpace=wrap;fillColor=#dbeafe;strokeColor=#3b82f6;fontSize=9;fontColor=#1e3a5f;align=center;" vertex="1" parent="pub-subnet">
+          <mxGeometry x="20" y="155" width="820" height="28" as="geometry" />
         </mxCell>
 
-        <!-- Lambda: appointment-service -->
-        <mxCell id="lam-appt" value="appointment-service&#xa;Schedule&#xa;Conflict Check&#xa;Calendar View" style="shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.lambda;fillColor=#3b82f6;strokeColor=#1d4ed8;fontColor=#0F172A;fontSize=9;align=center;verticalAlign=bottom;labelPosition=center;verticalLabelPosition=bottom;" vertex="1" parent="tier1">
-          <mxGeometry x="370" y="55" width="52" height="52" as="geometry" />
+        <!-- Row 2 of Lambda functions -->
+        <mxCell id="lam-lab" value="lab-service" style="shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.lambda;fillColor=#3b82f6;strokeColor=#1d4ed8;fontColor=#0F172A;fontSize=9;align=center;verticalAlign=bottom;labelPosition=center;verticalLabelPosition=bottom;" vertex="1" parent="pub-subnet">
+          <mxGeometry x="30" y="210" width="52" height="52" as="geometry" />
+        </mxCell>
+        <mxCell id="lam-transfer" value="transfer-service" style="shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.lambda;fillColor=#3b82f6;strokeColor=#1d4ed8;fontColor=#0F172A;fontSize=9;align=center;verticalAlign=bottom;labelPosition=center;verticalLabelPosition=bottom;" vertex="1" parent="pub-subnet">
+          <mxGeometry x="180" y="210" width="52" height="52" as="geometry" />
+        </mxCell>
+        <mxCell id="lam-analytics" value="analytics-service" style="shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.lambda;fillColor=#3b82f6;strokeColor=#1d4ed8;fontColor=#0F172A;fontSize=9;align=center;verticalAlign=bottom;labelPosition=center;verticalLabelPosition=bottom;" vertex="1" parent="pub-subnet">
+          <mxGeometry x="330" y="210" width="52" height="52" as="geometry" />
+        </mxCell>
+        <mxCell id="lam-notif" value="notification-service" style="shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.lambda;fillColor=#3b82f6;strokeColor=#1d4ed8;fontColor=#0F172A;fontSize=9;align=center;verticalAlign=bottom;labelPosition=center;verticalLabelPosition=bottom;" vertex="1" parent="pub-subnet">
+          <mxGeometry x="480" y="210" width="52" height="52" as="geometry" />
+        </mxCell>
+        <mxCell id="lam-etl" value="bulk-ingestion" style="shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.lambda;fillColor=#3b82f6;strokeColor=#1d4ed8;fontColor=#0F172A;fontSize=9;align=center;verticalAlign=bottom;labelPosition=center;verticalLabelPosition=bottom;" vertex="1" parent="pub-subnet">
+          <mxGeometry x="630" y="210" width="52" height="52" as="geometry" />
         </mxCell>
 
-        <!-- Lambda: clinical-service -->
-        <mxCell id="lam-clinical" value="clinical-service&#xa;Encounters&#xa;Diagnoses / Vitals&#xa;Prescriptions" style="shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.lambda;fillColor=#3b82f6;strokeColor=#1d4ed8;fontColor=#0F172A;fontSize=9;align=center;verticalAlign=bottom;labelPosition=center;verticalLabelPosition=bottom;" vertex="1" parent="tier1">
-          <mxGeometry x="485" y="55" width="52" height="52" as="geometry" />
+        <!-- Lambda SG annotation row 2 -->
+        <mxCell id="sg-ann2" value="Lambda SG (9 VPC-bound): outbound 443 → VPC CIDR only (SNS via VPC Interface Endpoint) | outbound 5432 → RDS SG only | no inbound | auth-service: no VPC — direct Cognito access" style="rounded=1;whiteSpace=wrap;fillColor=#dbeafe;strokeColor=#3b82f6;fontSize=9;fontColor=#1e3a5f;align=center;" vertex="1" parent="pub-subnet">
+          <mxGeometry x="20" y="308" width="820" height="28" as="geometry" />
         </mxCell>
 
-        <!-- Lambda: lab-service -->
-        <mxCell id="lam-lab" value="lab-service&#xa;Results Entry&#xa;Ref Range Check&#xa;Critical Alerts" style="shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.lambda;fillColor=#3b82f6;strokeColor=#1d4ed8;fontColor=#0F172A;fontSize=9;align=center;verticalAlign=bottom;labelPosition=center;verticalLabelPosition=bottom;" vertex="1" parent="tier1">
-          <mxGeometry x="600" y="55" width="52" height="52" as="geometry" />
+        <!-- DLQ for bulk-ingestion -->
+        <mxCell id="dlq" value="SQS DLQ&#xa;(bulk-ingestion)" style="shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.sqs;fillColor=#e0f2fe;strokeColor=#0369a1;fontColor=#0F172A;fontSize=9;align=center;verticalAlign=bottom;labelPosition=center;verticalLabelPosition=bottom;" vertex="1" parent="pub-subnet">
+          <mxGeometry x="630" y="370" width="52" height="52" as="geometry" />
         </mxCell>
 
-        <!-- Lambda: transfer-service -->
-        <mxCell id="lam-transfer" value="transfer-service&#xa;Access Requests&#xa;Grant / Revoke&#xa;Expiry Alerts" style="shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.lambda;fillColor=#3b82f6;strokeColor=#1d4ed8;fontColor=#0F172A;fontSize=9;align=center;verticalAlign=bottom;labelPosition=center;verticalLabelPosition=bottom;" vertex="1" parent="tier1">
-          <mxGeometry x="715" y="55" width="52" height="52" as="geometry" />
+        <!-- S3 Gateway Endpoint -->
+        <mxCell id="s3ep" value="S3 VPC Gateway Endpoint (free) — S3 traffic stays on AWS private network | SNS VPC Interface Endpoint (~$7.20/mo) — SNS access for lab-service, transfer-service, notification-service, bulk-ingestion | No NAT Gateway, no Secrets Manager endpoint (IAM DB auth), no Cognito-IDP endpoint (auth-service outside VPC)" style="rounded=1;whiteSpace=wrap;fillColor=#f0fdf4;strokeColor=#059669;fontSize=9;fontColor=#064e3b;align=center;" vertex="1" parent="pub-subnet">
+          <mxGeometry x="20" y="450" width="820" height="28" as="geometry" />
         </mxCell>
 
-        <!-- Lambda: analytics-service (provisioned concurrency) -->
-        <mxCell id="lam-analytics" value="analytics-service ⚡&#xa;Dashboard Queries&#xa;Materialized View&#xa;Refresh (5 min)" style="shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.lambda;fillColor=#3b82f6;strokeColor=#1d4ed8;fontColor=#0F172A;fontSize=9;align=center;verticalAlign=bottom;labelPosition=center;verticalLabelPosition=bottom;" vertex="1" parent="tier1">
-          <mxGeometry x="830" y="55" width="52" height="52" as="geometry" />
+        <mxCell id="pub-note" value="JWT + permission check on every request (REQ-NF-011). Concurrency cap: 200 (REQ-NF-021). Independent deployability (REQ-NF-023). All functions write to application_audit_log (REQ-F-068). RDS access via IAM DB auth — no stored DB password (REQ-NF-009)." style="text;html=1;strokeColor=none;fillColor=none;align=left;fontSize=9;fontColor=#475569;fontStyle=2;" vertex="1" parent="pub-subnet">
+          <mxGeometry x="20" y="498" width="820" height="20" as="geometry" />
         </mxCell>
 
-        <!-- Lambda: notification-service -->
-        <mxCell id="lam-notif" value="notification-service&#xa;In-App Polling&#xa;GET /notifications&#xa;(15s interval)" style="shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.lambda;fillColor=#3b82f6;strokeColor=#1d4ed8;fontColor=#0F172A;fontSize=9;align=center;verticalAlign=bottom;labelPosition=center;verticalLabelPosition=bottom;" vertex="1" parent="tier1">
-          <mxGeometry x="945" y="55" width="52" height="52" as="geometry" />
+        <!-- ═══════════════════════════════════════ -->
+        <!-- PRIVATE SUBNET — DATA                  -->
+        <!-- ═══════════════════════════════════════ -->
+        <mxCell id="priv-subnet" value="Private Subnet — Data (No Public IP | RDS SG: inbound port 5432 from Lambda SG only)" style="swimlane;startSize=28;fillColor=#fef9c3;strokeColor=#ca8a04;fontStyle=1;fontSize=10;fontColor=#854d0e;rounded=1;arcSize=2;" vertex="1" parent="vpc">
+          <mxGeometry x="20" y="630" width="860" height="360" as="geometry" />
         </mxCell>
 
-        <!-- Lambda: bulk-ingestion -->
-        <mxCell id="lam-etl" value="bulk-ingestion&#xa;CSV ETL&#xa;pg_trgm Dedup&#xa;S3 Trigger" style="shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.lambda;fillColor=#3b82f6;strokeColor=#1d4ed8;fontColor=#0F172A;fontSize=9;align=center;verticalAlign=bottom;labelPosition=center;verticalLabelPosition=bottom;" vertex="1" parent="tier1">
-          <mxGeometry x="1060" y="55" width="52" height="52" as="geometry" />
+        <!-- RDS -->
+        <mxCell id="rds" value="RDS PostgreSQL 15&#xa;db.t3.micro" style="shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.rds;fillColor=#ca8a04;strokeColor=#854d0e;fontColor=#0F172A;fontSize=9;align=center;verticalAlign=bottom;labelPosition=center;verticalLabelPosition=bottom;" vertex="1" parent="priv-subnet">
+          <mxGeometry x="80" y="55" width="60" height="60" as="geometry" />
         </mxCell>
 
-        <!-- Tier 1 annotation -->
-        <mxCell id="tier1-note" value="⚡ = Provisioned Concurrency (REQ-NF-005). All Lambda functions: VPC private subnet, JWT + permission check on every request (REQ-NF-011). Max concurrency capped at 200 (REQ-NF-021). Each function independently deployable (REQ-NF-023)." style="text;html=1;strokeColor=none;fillColor=none;align=left;fontSize=9;fontColor=#64748B;fontStyle=2;" vertex="1" parent="tier1">
-          <mxGeometry x="30" y="210" width="1080" height="20" as="geometry" />
-        </mxCell>
-
-        <!-- Audit note -->
-        <mxCell id="tier1-audit" value="Every Lambda reading/writing patient data writes to application_audit_log (REQ-F-068). audit_log table: INSERT + SELECT only — no UPDATE/DELETE (REQ-F-070)." style="text;html=1;strokeColor=none;fillColor=none;align=left;fontSize=9;fontColor=#64748B;fontStyle=2;" vertex="1" parent="tier1">
-          <mxGeometry x="30" y="230" width="1080" height="20" as="geometry" />
-        </mxCell>
-
-
-        <!-- ═══════════════════════════════════════════════════════════ -->
-        <!-- TIER 2 — DATA (VPC PRIVATE SUBNET)                          -->
-        <!-- ═══════════════════════════════════════════════════════════ -->
-        <mxCell id="tier2" value="TIER 2 — DATA (VPC Private Subnet — No Public IP)" style="swimlane;startSize=30;fillColor=#fef9c3;strokeColor=#ca8a04;fontStyle=1;fontSize=12;fontColor=#854d0e;swimlaneLine=1;rounded=1;arcSize=3;" vertex="1" parent="1">
-          <mxGeometry x="460" y="670" width="1140" height="280" as="geometry" />
-        </mxCell>
-
-        <!-- RDS PostgreSQL -->
-        <mxCell id="rds" value="Amazon RDS&#xa;PostgreSQL 15&#xa;&#xa;• AES-256 / KMS CMK&#xa;• VPC private subnet&#xa;• Daily snapshots 30d&#xa;• Point-in-time recovery&#xa;• pg_trgm GIN index&#xa;• Materialized views&#xa;• pg_cron scheduler&#xa;• application_audit_log&#xa;• notifications table&#xa;• 200 max connections" style="shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.rds;fillColor=#ca8a04;strokeColor=#854d0e;fontColor=#0F172A;fontSize=9;align=center;verticalAlign=bottom;labelPosition=center;verticalLabelPosition=bottom;" vertex="1" parent="tier2">
-          <mxGeometry x="60" y="50" width="60" height="60" as="geometry" />
-        </mxCell>
-
-        <!-- RDS label box -->
-        <mxCell id="rds-box" value="PostgreSQL 15&#xa;• pg_trgm GIN index on (full_name, date_of_birth)&#xa;• Materialized views refreshed every 5 min (business hrs)&#xa;• application_audit_log — INSERT/SELECT only&#xa;• notifications table for polling&#xa;• Daily automated snapshots, 30-day retention&#xa;• Single-AZ MVP; Multi-AZ SHOULD for production" style="rounded=1;whiteSpace=wrap;fillColor=#fef9c3;strokeColor=#ca8a04;fontSize=9;fontColor=#0F172A;align=left;verticalAlign=top;" vertex="1" parent="tier2">
-          <mxGeometry x="150" y="45" width="320" height="110" as="geometry" />
-        </mxCell>
-
-        <!-- S3 -->
-        <mxCell id="s3" value="Amazon S3&#xa;&#xa;• CSV uploads (pre-signed URL)&#xa;• Static frontend assets&#xa;• CloudTrail logs&#xa;• Archive bucket (versioned)&#xa;• Lifecycle → Glacier 90d" style="shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.s3;fillColor=#ca8a04;strokeColor=#854d0e;fontColor=#0F172A;fontSize=9;align=center;verticalAlign=bottom;labelPosition=center;verticalLabelPosition=bottom;" vertex="1" parent="tier2">
-          <mxGeometry x="530" y="50" width="60" height="60" as="geometry" />
-        </mxCell>
-
-        <!-- S3 label box -->
-        <mxCell id="s3-box" value="S3 Buckets&#xa;• app-assets: Amplify static frontend&#xa;• csv-uploads: pre-signed URL ingestion&#xa;• cloudtrail-logs: versioned, write-protected, 2yr retention&#xa;• csv-archive: versioned, Glacier after 90 days" style="rounded=1;whiteSpace=wrap;fillColor=#fef9c3;strokeColor=#ca8a04;fontSize=9;fontColor=#0F172A;align=left;verticalAlign=top;" vertex="1" parent="tier2">
-          <mxGeometry x="620" y="45" width="310" height="90" as="geometry" />
-        </mxCell>
-
-        <!-- KMS -->
-        <mxCell id="kms" value="AWS KMS&#xa;CMK for RDS&#xa;CMK for S3&#xa;CMK for Secrets&#xa;Annual rotation" style="shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.kms;fillColor=#ca8a04;strokeColor=#854d0e;fontColor=#0F172A;fontSize=9;align=center;verticalAlign=bottom;labelPosition=center;verticalLabelPosition=bottom;" vertex="1" parent="tier2">
-          <mxGeometry x="980" y="50" width="60" height="60" as="geometry" />
+        <mxCell id="rds-box" value="PostgreSQL 15 · db.t3.micro · Single-AZ · AWS managed encryption (AES-256) · iamAuthentication=true&#xa;pg_trgm GIN index · Materialized views · pg_cron (custom param group) · application_audit_log · notifications table&#xa;Backup: 2d MVP → 30d prod | PITR enabled | IAM DB auth: rds_iam role granted to his_app | Upgrade path: Aurora Serverless v2 (CDK Stack 2 swap)" style="rounded=1;whiteSpace=wrap;fillColor=#fef9c3;strokeColor=#ca8a04;fontSize=9;fontColor=#0F172A;align=left;verticalAlign=top;" vertex="1" parent="priv-subnet">
+          <mxGeometry x="165" y="45" width="670" height="75" as="geometry" />
         </mxCell>
 
         <!-- Secrets Manager -->
-        <mxCell id="secrets" value="Secrets Manager&#xa;DB credentials&#xa;API secrets&#xa;Runtime retrieval" style="shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.secrets_manager;fillColor=#ca8a04;strokeColor=#854d0e;fontColor=#0F172A;fontSize=9;align=center;verticalAlign=bottom;labelPosition=center;verticalLabelPosition=bottom;" vertex="1" parent="tier2">
-          <mxGeometry x="1060" y="50" width="60" height="60" as="geometry" />
+        <mxCell id="secrets" value="Secrets Manager&#xa;DB + API secrets" style="shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.secrets_manager;fillColor=#ca8a04;strokeColor=#854d0e;fontColor=#0F172A;fontSize=9;align=center;verticalAlign=bottom;labelPosition=center;verticalLabelPosition=bottom;" vertex="1" parent="priv-subnet">
+          <mxGeometry x="80" y="170" width="60" height="60" as="geometry" />
         </mxCell>
 
-        <!-- Tier 2 annotation -->
-        <mxCell id="tier2-note" value="All data encrypted at rest with AES-256 KMS CMKs (REQ-NF-007). No credentials in source code — runtime retrieval from Secrets Manager only (REQ-NF-009). Lambda connects to RDS via TCP within VPC private subnet (COM-004, REQ-NF-013)." style="text;html=1;strokeColor=none;fillColor=none;align=left;fontSize=9;fontColor=#64748B;fontStyle=2;" vertex="1" parent="tier2">
-          <mxGeometry x="40" y="210" width="1080" height="20" as="geometry" />
+        <mxCell id="secrets-box" value="Deploy-time secret access only — no VPC-bound Lambda calls Secrets Manager at runtime (REQ-NF-009)&#xa;Stores: GitHub OAuth token (CDK deploy only) · SES SMTP credentials&#xa;RDS access: replaced by IAM database authentication — short-lived tokens, no stored DB password" style="rounded=1;whiteSpace=wrap;fillColor=#fef9c3;strokeColor=#ca8a04;fontSize=9;fontColor=#0F172A;align=left;verticalAlign=top;" vertex="1" parent="priv-subnet">
+          <mxGeometry x="165" y="165" width="670" height="55" as="geometry" />
         </mxCell>
 
-
-        <!-- ═══════════════════════════════════════════════════════════ -->
-        <!-- TIER 3 — NOTIFICATIONS                                      -->
-        <!-- ═══════════════════════════════════════════════════════════ -->
-        <mxCell id="tier3" value="TIER 3 — NOTIFICATIONS" style="swimlane;startSize=30;fillColor=#fff7ed;strokeColor=#ea580c;fontStyle=1;fontSize=12;fontColor=#c2410c;swimlaneLine=1;rounded=1;arcSize=3;" vertex="1" parent="1">
-          <mxGeometry x="460" y="980" width="1140" height="210" as="geometry" />
+        <!-- KMS managed key note -->
+        <mxCell id="kms-note" value="Encryption: AWS Managed Keys (aws/rds · aws/s3 · aws/secretsmanager) — AES-256 at rest applied to all data stores. KMS CMKs with annual rotation are a Production P1 enhancement (REQ-NF-007/014)." style="rounded=1;whiteSpace=wrap;fillColor=#fff7ed;strokeColor=#f59e0b;fontSize=9;fontColor=#78350f;align=left;verticalAlign=top;" vertex="1" parent="priv-subnet">
+          <mxGeometry x="80" y="260" width="755" height="40" as="geometry" />
         </mxCell>
 
-        <!-- SES -->
-        <mxCell id="ses" value="Amazon SES&#xa;Transactional Email&#xa;&#xa;• Critical lab alerts&#xa;• Transfer approvals&#xa;• ETL completion&#xa;• Daily summary 08:00 WAT&#xa;• Grant expiry 24h warning" style="shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.ses;fillColor=#ea580c;strokeColor=#c2410c;fontColor=#0F172A;fontSize=9;align=center;verticalAlign=bottom;labelPosition=center;verticalLabelPosition=bottom;" vertex="1" parent="tier3">
-          <mxGeometry x="120" y="50" width="60" height="60" as="geometry" />
+        <mxCell id="priv-note" value="No internet gateway route from this subnet. RDS not publicly accessible. Inbound to RDS: port 5432 from Lambda SG only." style="text;html=1;strokeColor=none;fillColor=none;align=left;fontSize=9;fontColor=#475569;fontStyle=2;" vertex="1" parent="priv-subnet">
+          <mxGeometry x="20" y="320" width="820" height="20" as="geometry" />
         </mxCell>
 
-        <!-- SES details box -->
-        <mxCell id="ses-box" value="SES Email Events&#xa;• Critical lab result → attending clinician + ward head nurse (within 60s) (REQ-F-066)&#xa;• Transfer request received → source hospital admin (REQ-F-051)&#xa;• Transfer grant expiry 24h warning → receiving hospital (REQ-F-054)&#xa;• ETL job completion report (REQ-F-047)&#xa;• Daily summary at 08:00 WAT / UTC+1 (REQ-F-067)" style="rounded=1;whiteSpace=wrap;fillColor=#fff7ed;strokeColor=#ea580c;fontSize=9;fontColor=#0F172A;align=left;verticalAlign=top;" vertex="1" parent="tier3">
-          <mxGeometry x="210" y="45" width="440" height="100" as="geometry" />
+        <!-- ═══════════════════════════ -->
+        <!-- TIER 3 — S3 + SES          -->
+        <!-- ═══════════════════════════ -->
+        <mxCell id="tier3" value="TIER 3 — STORAGE &amp; NOTIFICATIONS" style="swimlane;startSize=30;fillColor=#fff7ed;strokeColor=#ea580c;fontStyle=1;fontSize=11;fontColor=#c2410c;rounded=1;arcSize=3;" vertex="1" parent="1">
+          <mxGeometry x="30" y="1430" width="900" height="260" as="geometry" />
         </mxCell>
 
-        <!-- SNS -->
-        <mxCell id="sns" value="Amazon SNS&#xa;Internal Event Bus&#xa;Decouples Lambda&#xa;from SES delivery" style="shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.sns;fillColor=#ea580c;strokeColor=#c2410c;fontColor=#0F172A;fontSize=9;align=center;verticalAlign=bottom;labelPosition=center;verticalLabelPosition=bottom;" vertex="1" parent="tier3">
-          <mxGeometry x="720" y="50" width="60" height="60" as="geometry" />
+        <mxCell id="s3" value="Amazon S3" style="shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.s3;fillColor=#ea580c;strokeColor=#c2410c;fontColor=#0F172A;fontSize=9;align=center;verticalAlign=bottom;labelPosition=center;verticalLabelPosition=bottom;" vertex="1" parent="tier3">
+          <mxGeometry x="60" y="55" width="60" height="60" as="geometry" />
         </mxCell>
 
-        <!-- SNS details box -->
-        <mxCell id="sns-box" value="SNS Topics&#xa;• critical-lab-alerts → SES subscription&#xa;• transfer-events → SES subscription&#xa;• system-alerts → CloudWatch alarm → admin email&#xa;Decouples event producers (Lambda) from email delivery (SES)" style="rounded=1;whiteSpace=wrap;fillColor=#fff7ed;strokeColor=#ea580c;fontSize=9;fontColor=#0F172A;align=left;verticalAlign=top;" vertex="1" parent="tier3">
-          <mxGeometry x="810" y="45" width="290" height="90" as="geometry" />
+        <mxCell id="s3-box" value="S3 Buckets (accessed via VPC Gateway Endpoint — no NAT)&#xa;• csv-uploads: pre-signed URL ingestion → triggers bulk-ingestion Lambda (REQ-F-044)&#xa;• csv-archive: versioned · Glacier lifecycle after 90 days (REQ-F-048)&#xa;• cloudtrail-logs: versioned · write-protected · 2yr retention (REQ-F-071)" style="rounded=1;whiteSpace=wrap;fillColor=#fff7ed;strokeColor=#ea580c;fontSize=9;fontColor=#0F172A;align=left;verticalAlign=top;" vertex="1" parent="tier3">
+          <mxGeometry x="145" y="45" width="720" height="80" as="geometry" />
         </mxCell>
 
-        <!-- Tier 3 annotation -->
-        <mxCell id="tier3-note" value="In-app notifications: client polls GET /notifications every 15s. Records stored in RDS notifications table (REQ-F-064, REQ-F-065). Email via SES. SNS decouples Lambda from SES (Section 3.2.12)." style="text;html=1;strokeColor=none;fillColor=none;align=left;fontSize=9;fontColor=#64748B;fontStyle=2;" vertex="1" parent="tier3">
-          <mxGeometry x="40" y="160" width="1060" height="20" as="geometry" />
+        <mxCell id="ses" value="Amazon SES&#xa;(Sandbox)" style="shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.ses;fillColor=#ea580c;strokeColor=#c2410c;fontColor=#0F172A;fontSize=9;align=center;verticalAlign=bottom;labelPosition=center;verticalLabelPosition=bottom;" vertex="1" parent="tier3">
+          <mxGeometry x="60" y="165" width="60" height="60" as="geometry" />
         </mxCell>
 
-        <!-- ═══════════════════════════════════════════════════════════ -->
-        <!-- TIER 4 — OBSERVABILITY                                      -->
-        <!-- ═══════════════════════════════════════════════════════════ -->
-        <mxCell id="tier4" value="TIER 4 — OBSERVABILITY &amp; AUDIT" style="swimlane;startSize=30;fillColor=#f5f3ff;strokeColor=#7c3aed;fontStyle=1;fontSize=12;fontColor=#5b21b6;swimlaneLine=1;rounded=1;arcSize=3;" vertex="1" parent="1">
-          <mxGeometry x="460" y="1220" width="1140" height="210" as="geometry" />
+        <mxCell id="ses-box" value="SES Sandbox — verified addresses: josuefotseu02@gmail.com · joshuaer03@gmail.com · joshiboss04@gmail.com&#xa;Events: critical lab alert within 60s (REQ-F-066) · transfer events (REQ-F-051/054) · ETL completion (REQ-F-047) · daily summary 08:00 WAT (REQ-F-067)&#xa;Go-live requirement: SES production access + domain verification before real hospital use" style="rounded=1;whiteSpace=wrap;fillColor=#fff7ed;strokeColor=#ea580c;fontSize=9;fontColor=#0F172A;align=left;verticalAlign=top;" vertex="1" parent="tier3">
+          <mxGeometry x="145" y="155" width="720" height="70" as="geometry" />
         </mxCell>
 
-        <!-- CloudTrail -->
-        <mxCell id="cloudtrail" value="AWS CloudTrail&#xa;Infrastructure Audit&#xa;&#xa;• All AWS API calls&#xa;• 2-year retention&#xa;• Versioned S3 bucket&#xa;• Write-protected" style="shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.cloudtrail;fillColor=#7c3aed;strokeColor=#5b21b6;fontColor=#0F172A;fontSize=9;align=center;verticalAlign=bottom;labelPosition=center;verticalLabelPosition=bottom;" vertex="1" parent="tier4">
-          <mxGeometry x="120" y="50" width="60" height="60" as="geometry" />
+        <!-- ═══════════════════════════ -->
+        <!-- TIER 4 — OBSERVABILITY     -->
+        <!-- ═══════════════════════════ -->
+        <mxCell id="tier4" value="TIER 4 — OBSERVABILITY &amp; AUDIT" style="swimlane;startSize=30;fillColor=#f5f3ff;strokeColor=#7c3aed;fontStyle=1;fontSize=11;fontColor=#5b21b6;rounded=1;arcSize=3;" vertex="1" parent="1">
+          <mxGeometry x="30" y="1710" width="900" height="280" as="geometry" />
         </mxCell>
 
-        <mxCell id="cloudtrail-box" value="CloudTrail — Infrastructure Level (REQ-F-071)&#xa;Records all AWS API calls. Does NOT record clinical data access.&#xa;Stored in dedicated versioned write-protected S3 bucket.&#xa;Minimum 2-year retention." style="rounded=1;whiteSpace=wrap;fillColor=#f5f3ff;strokeColor=#7c3aed;fontSize=9;fontColor=#0F172A;align=left;verticalAlign=top;" vertex="1" parent="tier4">
-          <mxGeometry x="210" y="45" width="380" height="75" as="geometry" />
+        <mxCell id="sns" value="Amazon SNS&#xa;Event Bus" style="shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.sns;fillColor=#7c3aed;strokeColor=#5b21b6;fontColor=#0F172A;fontSize=9;align=center;verticalAlign=bottom;labelPosition=center;verticalLabelPosition=bottom;" vertex="1" parent="tier4">
+          <mxGeometry x="60" y="55" width="60" height="60" as="geometry" />
         </mxCell>
 
-        <!-- CloudWatch -->
-        <mxCell id="cloudwatch" value="Amazon CloudWatch&#xa;Monitoring &amp; Alarms&#xa;&#xa;• Structured JSON logs&#xa;• Lambda error rate &gt;5/min&#xa;• RDS CPU &gt;80% for 5 min&#xa;• Alarms → SNS → Admin" style="shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.cloudwatch;fillColor=#7c3aed;strokeColor=#5b21b6;fontColor=#0F172A;fontSize=9;align=center;verticalAlign=bottom;labelPosition=center;verticalLabelPosition=bottom;" vertex="1" parent="tier4">
-          <mxGeometry x="650" y="50" width="60" height="60" as="geometry" />
+        <mxCell id="sns-box" value="SNS Topics: critical-lab-alerts → SES subscription | transfer-events → SES subscription | system-alarms → admin email&#xa;Decouples Lambda event producers from SES delivery. No sandbox restrictions on SNS pub/sub." style="rounded=1;whiteSpace=wrap;fillColor=#f5f3ff;strokeColor=#7c3aed;fontSize=9;fontColor=#0F172A;align=left;verticalAlign=top;" vertex="1" parent="tier4">
+          <mxGeometry x="145" y="48" width="720" height="55" as="geometry" />
         </mxCell>
 
-        <mxCell id="cloudwatch-box" value="CloudWatch (REQ-NF-019, REQ-NF-024)&#xa;Structured JSON logs: function name, request ID, user ID, hospital ID, timestamp (WAT), level, message.&#xa;Alarms: Lambda error rate &gt;5/min OR RDS CPU &gt;80% for 5 min → SNS notify admin within 5 min." style="rounded=1;whiteSpace=wrap;fillColor=#f5f3ff;strokeColor=#7c3aed;fontSize=9;fontColor=#0F172A;align=left;verticalAlign=top;" vertex="1" parent="tier4">
-          <mxGeometry x="740" y="45" width="360" height="75" as="geometry" />
+        <mxCell id="cloudwatch" value="CloudWatch&#xa;Logs &amp; Alarms" style="shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.cloudwatch;fillColor=#7c3aed;strokeColor=#5b21b6;fontColor=#0F172A;fontSize=9;align=center;verticalAlign=bottom;labelPosition=center;verticalLabelPosition=bottom;" vertex="1" parent="tier4">
+          <mxGeometry x="60" y="155" width="60" height="60" as="geometry" />
         </mxCell>
 
-        <!-- Tier 4 annotation -->
-        <mxCell id="tier4-note" value="Two-tier audit: CloudTrail = infrastructure (AWS API calls) | application_audit_log in RDS = clinical data access (REQ-F-068 to REQ-F-070). Both required for Cameroon Law No. 2010/012 compliance." style="text;html=1;strokeColor=none;fillColor=none;align=left;fontSize=9;fontColor=#64748B;fontStyle=2;" vertex="1" parent="tier4">
-          <mxGeometry x="40" y="160" width="1060" height="20" as="geometry" />
+        <mxCell id="cw-box" value="Structured JSON logs: function · request ID · user ID · hospital ID · timestamp WAT · level · message (REQ-NF-024)&#xa;Alarms: Lambda error rate &gt;5/min OR RDS CPU &gt;80% for 5 min → SNS → admin within 5 min (REQ-NF-019)&#xa;CloudTrail: all AWS API calls → versioned write-protected S3 bucket · 2yr retention (REQ-F-071)" style="rounded=1;whiteSpace=wrap;fillColor=#f5f3ff;strokeColor=#7c3aed;fontSize=9;fontColor=#0F172A;align=left;verticalAlign=top;" vertex="1" parent="tier4">
+          <mxGeometry x="145" y="148" width="720" height="65" as="geometry" />
         </mxCell>
 
+        <mxCell id="t4-note" value="Two-tier audit: CloudTrail = infrastructure AWS API calls | application_audit_log in RDS = clinical data access (INSERT/SELECT only, REQ-F-068–070). Both required for Cameroon Law No. 2010/012 compliance." style="text;html=1;strokeColor=none;fillColor=none;align=left;fontSize=9;fontColor=#475569;fontStyle=2;" vertex="1" parent="tier4">
+          <mxGeometry x="30" y="242" width="840" height="20" as="geometry" />
+        </mxCell>
 
-        <!-- ═══════════════════════════════════════════════════════════ -->
-        <!-- DATA FLOW ARROWS                                            -->
-        <!-- ═══════════════════════════════════════════════════════════ -->
+        <!-- ═══════════════════════════ -->
+        <!-- LEGEND                     -->
+        <!-- ═══════════════════════════ -->
+        <mxCell id="legend" value="LEGEND — Connection Types" style="swimlane;startSize=28;fillColor=#f8fafc;strokeColor=#94a3b8;fontStyle=1;fontSize=10;fontColor=#0F172A;rounded=1;arcSize=4;" vertex="1" parent="1">
+          <mxGeometry x="30" y="2010" width="900" height="160" as="geometry" />
+        </mxCell>
 
-        <!-- Client → Amplify (HTTPS/TLS 1.3) -->
-        <mxCell id="e-client-amplify" value="HTTPS / TLS 1.3" style="edgeStyle=orthogonalEdgeStyle;strokeColor=#0D9488;strokeWidth=2;fontColor=#0D9488;fontSize=9;fontStyle=1;" edge="1" parent="1" source="browser" target="amplify">
+        <mxCell id="leg1" value="━━━  HTTPS / TLS 1.3 — browser to AWS endpoints" style="text;html=1;strokeColor=none;fillColor=none;align=left;fontSize=10;fontColor=#0D9488;" vertex="1" parent="legend">
+          <mxGeometry x="20" y="38" width="420" height="22" as="geometry" />
+        </mxCell>
+        <mxCell id="leg2" value="━━━  Lambda to RDS — TCP port 5432, VPC internal" style="text;html=1;strokeColor=none;fillColor=none;align=left;fontSize=10;fontColor=#ca8a04;" vertex="1" parent="legend">
+          <mxGeometry x="20" y="62" width="420" height="22" as="geometry" />
+        </mxCell>
+        <mxCell id="leg3" value="- - -  Async event / S3 trigger / DLQ" style="text;html=1;strokeColor=none;fillColor=none;align=left;fontSize=10;fontColor=#ea580c;" vertex="1" parent="legend">
+          <mxGeometry x="20" y="86" width="420" height="22" as="geometry" />
+        </mxCell>
+        <mxCell id="leg4" value="━━━  Lambda to SNS/SES — HTTPS port 443 via SG rule" style="text;html=1;strokeColor=none;fillColor=none;align=left;fontSize=10;fontColor=#c2410c;" vertex="1" parent="legend">
+          <mxGeometry x="20" y="110" width="420" height="22" as="geometry" />
+        </mxCell>
+        <mxCell id="leg5" value="━━━  Observability / audit flow" style="text;html=1;strokeColor=none;fillColor=none;align=left;fontSize=10;fontColor=#7c3aed;" vertex="1" parent="legend">
+          <mxGeometry x="460" y="38" width="420" height="22" as="geometry" />
+        </mxCell>
+        <mxCell id="leg6" value="━━━  Encryption — AES-256 AWS managed keys" style="text;html=1;strokeColor=none;fillColor=none;align=left;fontSize=10;fontColor=#854d0e;" vertex="1" parent="legend">
+          <mxGeometry x="460" y="62" width="420" height="22" as="geometry" />
+        </mxCell>
+        <mxCell id="leg7" value="Region: us-east-1 (MVP) → af-south-1 (production)" style="text;html=1;strokeColor=none;fillColor=none;align=left;fontSize=10;fontColor=#0F172A;fontStyle=1;" vertex="1" parent="legend">
+          <mxGeometry x="460" y="86" width="420" height="22" as="geometry" />
+        </mxCell>
+        <mxCell id="leg8" value="All timestamps in WAT (UTC+1) — Cameroon timezone" style="text;html=1;strokeColor=none;fillColor=none;align=left;fontSize=10;fontColor=#0F172A;" vertex="1" parent="legend">
+          <mxGeometry x="460" y="110" width="420" height="22" as="geometry" />
+        </mxCell>
+
+        <!-- ═══════════════════════════ -->
+        <!-- DATA FLOW ARROWS            -->
+        <!-- ═══════════════════════════ -->
+
+        <!-- Browser → Amplify (implied by tier0 placement, arrow from outside) -->
+        <mxCell id="e-client-amplify" value="HTTPS / TLS 1.3" style="edgeStyle=orthogonalEdgeStyle;strokeColor=#0D9488;strokeWidth=2;fontColor=#0D9488;fontSize=9;fontStyle=1;exitX=0.5;exitY=0;exitDx=0;exitDy=0;" edge="1" parent="1" target="amplify">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="160" y="55" as="sourcePoint" />
+          </mxGeometry>
+        </mxCell>
+
+        <!-- API GW → Lambdas -->
+        <mxCell id="e-apigw-lam1" value="Routes" style="edgeStyle=orthogonalEdgeStyle;strokeColor=#3b82f6;strokeWidth=2;fontColor=#3b82f6;fontSize=9;" edge="1" parent="1" source="apigw" target="lam-auth">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e-apigw-lam2" value="" style="edgeStyle=orthogonalEdgeStyle;strokeColor=#3b82f6;strokeWidth=1;" edge="1" parent="1" source="apigw" target="lam-patient">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e-apigw-lam3" value="" style="edgeStyle=orthogonalEdgeStyle;strokeColor=#3b82f6;strokeWidth=1;" edge="1" parent="1" source="apigw" target="lam-lab">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e-apigw-lam4" value="" style="edgeStyle=orthogonalEdgeStyle;strokeColor=#3b82f6;strokeWidth=1;" edge="1" parent="1" source="apigw" target="lam-notif">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
 
-        <!-- Client → WAF → API Gateway -->
-        <mxCell id="e-client-waf" value="API Requests&#xa;TLS 1.3" style="edgeStyle=orthogonalEdgeStyle;strokeColor=#0D9488;strokeWidth=2;fontColor=#0D9488;fontSize=9;" edge="1" parent="1" source="browser" target="waf">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
-        <mxCell id="e-waf-apigw" value="Filtered" style="edgeStyle=orthogonalEdgeStyle;strokeColor=#0D9488;strokeWidth=2;fontColor=#0D9488;fontSize=9;" edge="1" parent="1" source="waf" target="apigw">
+        <!-- Cognito → API GW authoriser -->
+        <mxCell id="e-cognito-apigw" value="JWT authoriser" style="edgeStyle=orthogonalEdgeStyle;strokeColor=#0D9488;strokeWidth=1.5;fontColor=#0D9488;fontSize=9;dashed=1;" edge="1" parent="1" source="cognito" target="apigw">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
 
-        <!-- Client ↔ Cognito (Auth) -->
-        <mxCell id="e-client-cognito" value="Auth / JWT" style="edgeStyle=orthogonalEdgeStyle;strokeColor=#0D9488;strokeWidth=2;fontColor=#0D9488;fontSize=9;" edge="1" parent="1" source="browser" target="cognito">
+        <!-- Lambda → RDS -->
+        <mxCell id="e-lam-rds" value="TCP 5432 (VPC)" style="edgeStyle=orthogonalEdgeStyle;strokeColor=#ca8a04;strokeWidth=2;fontColor=#854d0e;fontSize=9;fontStyle=1;" edge="1" parent="1" source="lam-patient" target="rds">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-
-        <!-- API Gateway → all Lambda functions -->
-        <mxCell id="e-apigw-lam-auth" value="" style="edgeStyle=orthogonalEdgeStyle;strokeColor=#3b82f6;strokeWidth=1.5;" edge="1" parent="1" source="apigw" target="lam-auth">
+        <mxCell id="e-lam-rds2" value="" style="edgeStyle=orthogonalEdgeStyle;strokeColor=#ca8a04;strokeWidth=1;" edge="1" parent="1" source="lam-analytics" target="rds">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="e-apigw-lam-hospital" value="" style="edgeStyle=orthogonalEdgeStyle;strokeColor=#3b82f6;strokeWidth=1.5;" edge="1" parent="1" source="apigw" target="lam-hospital">
+        <mxCell id="e-lam-rds3" value="" style="edgeStyle=orthogonalEdgeStyle;strokeColor=#ca8a04;strokeWidth=1;" edge="1" parent="1" source="lam-etl" target="rds">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="e-apigw-lam-patient" value="" style="edgeStyle=orthogonalEdgeStyle;strokeColor=#3b82f6;strokeWidth=1.5;" edge="1" parent="1" source="apigw" target="lam-patient">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
-        <mxCell id="e-apigw-lam-appt" value="" style="edgeStyle=orthogonalEdgeStyle;strokeColor=#3b82f6;strokeWidth=1.5;" edge="1" parent="1" source="apigw" target="lam-appt">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
-        <mxCell id="e-apigw-lam-clinical" value="" style="edgeStyle=orthogonalEdgeStyle;strokeColor=#3b82f6;strokeWidth=1.5;" edge="1" parent="1" source="apigw" target="lam-clinical">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
-        <mxCell id="e-apigw-lam-lab" value="" style="edgeStyle=orthogonalEdgeStyle;strokeColor=#3b82f6;strokeWidth=1.5;" edge="1" parent="1" source="apigw" target="lam-lab">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
-        <mxCell id="e-apigw-lam-transfer" value="" style="edgeStyle=orthogonalEdgeStyle;strokeColor=#3b82f6;strokeWidth=1.5;" edge="1" parent="1" source="apigw" target="lam-transfer">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
-        <mxCell id="e-apigw-lam-analytics" value="" style="edgeStyle=orthogonalEdgeStyle;strokeColor=#3b82f6;strokeWidth=1.5;" edge="1" parent="1" source="apigw" target="lam-analytics">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
-        <mxCell id="e-apigw-lam-notif" value="" style="edgeStyle=orthogonalEdgeStyle;strokeColor=#3b82f6;strokeWidth=1.5;" edge="1" parent="1" source="apigw" target="lam-notif">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
-
-        <!-- S3 upload event → bulk-ingestion Lambda -->
-        <mxCell id="e-s3-etl" value="S3 PutObject Event&#xa;(CSV Upload)" style="edgeStyle=orthogonalEdgeStyle;strokeColor=#ca8a04;strokeWidth=2;fontColor=#854d0e;fontSize=9;fontStyle=1;dashed=1;" edge="1" parent="1" source="s3" target="lam-etl">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
-
-        <!-- All Lambda → RDS (VPC TCP) -->
-        <mxCell id="e-lam-rds" value="TCP / VPC&#xa;Private Subnet" style="edgeStyle=orthogonalEdgeStyle;strokeColor=#ca8a04;strokeWidth=2;fontColor=#854d0e;fontSize=9;fontStyle=1;" edge="1" parent="1" source="lam-patient" target="rds">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
-        <mxCell id="e-lam-rds2" value="" style="edgeStyle=orthogonalEdgeStyle;strokeColor=#ca8a04;strokeWidth=1.5;" edge="1" parent="1" source="lam-clinical" target="rds">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
-        <mxCell id="e-lam-rds3" value="" style="edgeStyle=orthogonalEdgeStyle;strokeColor=#ca8a04;strokeWidth=1.5;" edge="1" parent="1" source="lam-lab" target="rds">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
-        <mxCell id="e-lam-rds4" value="" style="edgeStyle=orthogonalEdgeStyle;strokeColor=#ca8a04;strokeWidth=1.5;" edge="1" parent="1" source="lam-analytics" target="rds">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
-        <mxCell id="e-lam-rds5" value="" style="edgeStyle=orthogonalEdgeStyle;strokeColor=#ca8a04;strokeWidth=1.5;" edge="1" parent="1" source="lam-etl" target="rds">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
-        <mxCell id="e-lam-rds6" value="" style="edgeStyle=orthogonalEdgeStyle;strokeColor=#ca8a04;strokeWidth=1.5;" edge="1" parent="1" source="lam-notif" target="rds">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
-
-        <!-- Lambda → S3 (pre-signed URL generation) -->
-        <mxCell id="e-lam-s3" value="Pre-signed URL&#xa;Generation" style="edgeStyle=orthogonalEdgeStyle;strokeColor=#ca8a04;strokeWidth=1.5;fontColor=#854d0e;fontSize=9;dashed=1;" edge="1" parent="1" source="lam-patient" target="s3">
+        <mxCell id="e-lam-rds4" value="" style="edgeStyle=orthogonalEdgeStyle;strokeColor=#ca8a04;strokeWidth=1;" edge="1" parent="1" source="lam-notif" target="rds">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
 
         <!-- Lambda → Secrets Manager -->
-        <mxCell id="e-lam-secrets" value="Runtime credential&#xa;retrieval" style="edgeStyle=orthogonalEdgeStyle;strokeColor=#ca8a04;strokeWidth=1.5;fontColor=#854d0e;fontSize=9;dashed=1;" edge="1" parent="1" source="lam-hospital" target="secrets">
+        <mxCell id="e-lam-secrets" value="Runtime secrets" style="edgeStyle=orthogonalEdgeStyle;strokeColor=#ca8a04;strokeWidth=1.5;fontColor=#854d0e;fontSize=9;dashed=1;" edge="1" parent="1" source="lam-hospital" target="secrets">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
 
-        <!-- Lambda (lab/transfer) → SNS → SES -->
-        <mxCell id="e-lam-sns" value="Publish Event" style="edgeStyle=orthogonalEdgeStyle;strokeColor=#ea580c;strokeWidth=2;fontColor=#c2410c;fontSize=9;fontStyle=1;" edge="1" parent="1" source="lam-lab" target="sns">
+        <!-- S3 PutObject → bulk-ingestion Lambda -->
+        <mxCell id="e-s3-etl" value="PutObject event trigger" style="edgeStyle=orthogonalEdgeStyle;strokeColor=#ea580c;strokeWidth=2;fontColor=#c2410c;fontSize=9;dashed=1;" edge="1" parent="1" source="s3" target="lam-etl">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="e-lam-sns2" value="" style="edgeStyle=orthogonalEdgeStyle;strokeColor=#ea580c;strokeWidth=1.5;" edge="1" parent="1" source="lam-transfer" target="sns">
+
+        <!-- bulk-ingestion → DLQ -->
+        <mxCell id="e-etl-dlq" value="Failed invocations" style="edgeStyle=orthogonalEdgeStyle;strokeColor=#0369a1;strokeWidth=1.5;fontColor=#0369a1;fontSize=9;dashed=1;" edge="1" parent="1" source="lam-etl" target="dlq">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="e-sns-ses" value="Triggers email&#xa;delivery" style="edgeStyle=orthogonalEdgeStyle;strokeColor=#ea580c;strokeWidth=2;fontColor=#c2410c;fontSize=9;fontStyle=1;" edge="1" parent="1" source="sns" target="ses">
+
+        <!-- Lambda → SNS (lab alert, transfer) -->
+        <mxCell id="e-lam-sns" value="Publish event (port 443)" style="edgeStyle=orthogonalEdgeStyle;strokeColor=#c2410c;strokeWidth=2;fontColor=#c2410c;fontSize=9;" edge="1" parent="1" source="lam-lab" target="sns">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e-lam-sns2" value="" style="edgeStyle=orthogonalEdgeStyle;strokeColor=#c2410c;strokeWidth=1;" edge="1" parent="1" source="lam-transfer" target="sns">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- SNS → SES -->
+        <mxCell id="e-sns-ses" value="Email delivery" style="edgeStyle=orthogonalEdgeStyle;strokeColor=#c2410c;strokeWidth=2;fontColor=#c2410c;fontSize=9;" edge="1" parent="1" source="sns" target="ses">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- Lambda → CloudWatch -->
+        <mxCell id="e-lam-cw" value="Structured JSON logs" style="edgeStyle=orthogonalEdgeStyle;strokeColor=#7c3aed;strokeWidth=1.5;fontColor=#5b21b6;fontSize=9;" edge="1" parent="1" source="lam-clinical" target="cloudwatch">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
 
         <!-- CloudWatch → SNS (alarm) -->
-        <mxCell id="e-cw-sns" value="Alarm (error rate /&#xa;CPU threshold)" style="edgeStyle=orthogonalEdgeStyle;strokeColor=#7c3aed;strokeWidth=1.5;fontColor=#5b21b6;fontSize=9;dashed=1;" edge="1" parent="1" source="cloudwatch" target="sns">
+        <mxCell id="e-cw-sns" value="Alarm (error/CPU)" style="edgeStyle=orthogonalEdgeStyle;strokeColor=#7c3aed;strokeWidth=1.5;fontColor=#5b21b6;fontSize=9;dashed=1;" edge="1" parent="1" source="cloudwatch" target="sns">
           <mxGeometry relative="1" as="geometry" />
-        </mxCell>
-
-        <!-- Lambda → CloudWatch (logs) -->
-        <mxCell id="e-lam-cw" value="Structured JSON logs" style="edgeStyle=orthogonalEdgeStyle;strokeColor=#7c3aed;strokeWidth=1.5;fontColor=#5b21b6;fontSize=9;" edge="1" parent="1" source="lam-lab" target="cloudwatch">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
-
-        <!-- CloudTrail → S3 -->
-        <mxCell id="e-ct-s3" value="Log delivery" style="edgeStyle=orthogonalEdgeStyle;strokeColor=#7c3aed;strokeWidth=1.5;fontColor=#5b21b6;fontSize=9;" edge="1" parent="1" source="cloudtrail" target="s3">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
-
-        <!-- KMS encryption arrows -->
-        <mxCell id="e-kms-rds" value="Encrypts" style="edgeStyle=orthogonalEdgeStyle;strokeColor=#ca8a04;strokeWidth=1.5;fontColor=#854d0e;fontSize=9;dashed=1;" edge="1" parent="1" source="kms" target="rds">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
-        <mxCell id="e-kms-s3" value="Encrypts" style="edgeStyle=orthogonalEdgeStyle;strokeColor=#ca8a04;strokeWidth=1.5;fontColor=#854d0e;fontSize=9;dashed=1;" edge="1" parent="1" source="kms" target="s3">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
-
-        <!-- ═══════════════════════════════════════════════════════════ -->
-        <!-- LEGEND                                                       -->
-        <!-- ═══════════════════════════════════════════════════════════ -->
-        <mxCell id="legend" value="LEGEND" style="swimlane;startSize=25;fillColor=#f8f9fa;strokeColor=#94a3b8;fontStyle=1;fontSize=11;fontColor=#0F172A;rounded=1;arcSize=4;" vertex="1" parent="1">
-          <mxGeometry x="40" y="980" width="380" height="450" as="geometry" />
-        </mxCell>
-        <mxCell id="leg1" value="━━━  HTTPS / TLS 1.3 (primary data flow)" style="text;html=1;strokeColor=none;fillColor=none;align=left;fontSize=10;fontColor=#0D9488;" vertex="1" parent="legend">
-          <mxGeometry x="15" y="35" width="350" height="20" as="geometry" />
-        </mxCell>
-        <mxCell id="leg2" value="━━━  Lambda → RDS (VPC TCP private)" style="text;html=1;strokeColor=none;fillColor=none;align=left;fontSize=10;fontColor=#ca8a04;" vertex="1" parent="legend">
-          <mxGeometry x="15" y="60" width="350" height="20" as="geometry" />
-        </mxCell>
-        <mxCell id="leg3" value="- - -  Event / async trigger" style="text;html=1;strokeColor=none;fillColor=none;align=left;fontSize=10;fontColor=#ca8a04;" vertex="1" parent="legend">
-          <mxGeometry x="15" y="85" width="350" height="20" as="geometry" />
-        </mxCell>
-        <mxCell id="leg4" value="━━━  Notification / alerting flow" style="text;html=1;strokeColor=none;fillColor=none;align=left;fontSize=10;fontColor=#ea580c;" vertex="1" parent="legend">
-          <mxGeometry x="15" y="110" width="350" height="20" as="geometry" />
-        </mxCell>
-        <mxCell id="leg5" value="━━━  Observability / audit flow" style="text;html=1;strokeColor=none;fillColor=none;align=left;fontSize=10;fontColor=#7c3aed;" vertex="1" parent="legend">
-          <mxGeometry x="15" y="135" width="350" height="20" as="geometry" />
-        </mxCell>
-        <mxCell id="leg6" value="⚡ = Provisioned Concurrency (REQ-NF-005)" style="text;html=1;strokeColor=none;fillColor=none;align=left;fontSize=10;fontColor=#3b82f6;" vertex="1" parent="legend">
-          <mxGeometry x="15" y="165" width="350" height="20" as="geometry" />
-        </mxCell>
-        <mxCell id="leg7" value="Region: af-south-1 (Cape Town)" style="text;html=1;strokeColor=none;fillColor=none;align=left;fontSize=10;fontColor=#0F172A;fontStyle=1;" vertex="1" parent="legend">
-          <mxGeometry x="15" y="195" width="350" height="20" as="geometry" />
-        </mxCell>
-        <mxCell id="leg8" value="All timestamps: WAT (UTC+1)" style="text;html=1;strokeColor=none;fillColor=none;align=left;fontSize=10;fontColor=#0F172A;" vertex="1" parent="legend">
-          <mxGeometry x="15" y="215" width="350" height="20" as="geometry" />
-        </mxCell>
-        <mxCell id="leg9" value="Services removed vs SRS v1.0:&#xa;✗ Amazon Athena (no functional req)&#xa;✗ AWS Glue (replaced by bulk-ingestion Lambda)&#xa;✗ ElastiCache Redis (replaced by pg materialized views)&#xa;✗ RDS Proxy (200 user cap managed by Lambda concurrency)&#xa;✗ CloudFront standalone (built into Amplify)" style="text;html=1;strokeColor=none;fillColor=#fee2e2;strokeColor=#ef4444;align=left;fontSize=9;fontColor=#0F172A;rounded=1;" vertex="1" parent="legend">
-          <mxGeometry x="15" y="245" width="350" height="110" as="geometry" />
-        </mxCell>
-        <mxCell id="leg10" value="13 services total (down from 17+)" style="text;html=1;strokeColor=none;fillColor=#dcfce7;strokeColor=#10b981;align=center;fontSize=10;fontColor=#065f46;fontStyle=1;rounded=1;" vertex="1" parent="legend">
-          <mxGeometry x="15" y="370" width="350" height="30" as="geometry" />
         </mxCell>
 
       </root>

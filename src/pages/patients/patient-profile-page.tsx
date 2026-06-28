@@ -1,5 +1,6 @@
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Link, useNavigate, useParams } from "react-router-dom"
+import { API_BASE } from "@/lib/api"
 import {
   Activity,
   AlertCircle,
@@ -669,7 +670,7 @@ function NewPrescriptionModal({
 // ── Page ──────────────────────────────────────────────────────────
 
 export function PatientProfilePage() {
-  const { id = "1" } = useParams<{ id: string }>()
+  const { id = "" } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const [activeTab, setActiveTab] = useState<TabId>("Timeline")
   const [encPage,   setEncPage]   = useState(1)
@@ -677,7 +678,42 @@ export function PatientProfilePage() {
   const [showLabRequestModal,   setShowLabRequestModal]   = useState(false)
   const [showPrescriptionModal, setShowPrescriptionModal] = useState(false)
 
-  const patient = MOCK_PATIENT
+  const [patient, setPatient] = useState({
+    ...MOCK_PATIENT,
+    pid:           MOCK_PATIENT.pid,
+    consentStatus: MOCK_PATIENT.consentStatus,
+  })
+
+  useEffect(() => {
+    if (!id) return
+    const token = localStorage.getItem("his_id_token")
+    fetch(`${API_BASE}/patients/${id}`, { headers: { Authorization: `Bearer ${token}` } })
+      .then((r) => r.json())
+      .then((data) => {
+        if (data.id) {
+          setPatient({
+            name:          data.name             ?? MOCK_PATIENT.name,
+            initials:      (data.name ?? "")
+                             .trim().split(/\s+/)
+                             .map((n: string) => n[0] ?? "").join("").slice(0, 2).toUpperCase()
+                           || MOCK_PATIENT.initials,
+            pid:           data.patientId        ?? MOCK_PATIENT.pid,
+            dob:           data.dob              ?? MOCK_PATIENT.dob,
+            age:           data.age              ?? MOCK_PATIENT.age,
+            phone:         data.phone            ?? MOCK_PATIENT.phone,
+            region:        data.region           ?? MOCK_PATIENT.region,
+            sex:           data.sex              ?? MOCK_PATIENT.sex,
+            consentStatus: (data.consentPersonalData ?? MOCK_PATIENT.consentStatus) as ConsentStatus,
+            bloodGroup:    data.bloodGroup       ?? MOCK_PATIENT.bloodGroup,
+            nid:           data.nationalId       ?? MOCK_PATIENT.nid,
+            allergies:     data.knownAllergies?.length ? data.knownAllergies : MOCK_PATIENT.allergies,
+            conditions:    data.chronicConditions?.length ? data.chronicConditions : MOCK_PATIENT.conditions,
+          })
+        }
+      })
+      .catch(() => {})
+  }, [id])
+
   const consentRefused = patient.consentStatus === "Refused"
 
   const encTotalPages = Math.max(1, Math.ceil(MOCK_ENCOUNTERS.length / ENC_PAGE_SIZE))

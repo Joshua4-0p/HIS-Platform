@@ -20,6 +20,7 @@ import { AuthLayout, HISLogo } from "@/components/auth/auth-layout"
 import { cn } from "@/lib/utils"
 import { toast } from "sonner"
 import { useState } from "react"
+import { API_BASE } from "@/lib/api"
 
 const CAMEROON_REGIONS = [
   "Adamawa",
@@ -80,14 +81,35 @@ export function RegisterHospitalPage() {
     defaultValues: { facilityType: undefined },
   })
 
-  async function onSubmit(_data: FormValues) {
+  async function onSubmit(data: FormValues) {
     setIsLoading(true)
-    await new Promise((r) => setTimeout(r, 1500))
-    setIsLoading(false)
-    toast.success("Registration submitted", {
-      description: "Your application is pending Super Admin review. Check your email for next steps.",
-    })
-    navigate("/verify-email")
+    try {
+      const res = await fetch(`${API_BASE}/hospitals/register`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          facilityName: data.facilityName,
+          address: data.address,
+          region: data.region,
+          facilityType: data.facilityType,
+          adminName: data.adminName,
+          adminEmail: data.adminEmail,
+        }),
+      })
+      const json = await res.json()
+      if (!res.ok) {
+        toast.error("Registration failed", { description: json.error ?? "Please try again." })
+        return
+      }
+      toast.success("Registration submitted", {
+        description: "Your application is pending Super Admin review. Check your email for next steps.",
+      })
+      navigate("/verify-email")
+    } catch {
+      toast.error("Network error", { description: "Check your connection and try again." })
+    } finally {
+      setIsLoading(false)
+    }
   }
 
   return (
@@ -258,6 +280,13 @@ export function RegisterHospitalPage() {
               )}
             </Button>
           </form>
+
+          <p className="mt-6 text-center text-sm text-muted-foreground">
+            Already have an account?{" "}
+            <a href="/login" className="font-medium text-primary hover:underline">
+              Sign in
+            </a>
+          </p>
         </div>
       </div>
     </AuthLayout>

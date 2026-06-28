@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { cn } from "@/lib/utils"
+import { API_BASE } from "@/lib/api"
 
 // ── Mock original record ──────────────────────────────────────────
 
@@ -76,7 +77,9 @@ function LockedField({
 // ── Page ──────────────────────────────────────────────────────────
 
 export function AmendClinicalRecordPage() {
-  const { id = "1" } = useParams<{ id: string }>()
+  const { id = "", recordType = "encounter", recordId = "" } = useParams<{
+    id: string; recordType: string; recordId: string
+  }>()
   const navigate = useNavigate()
 
   // Amendment values (editable copies of original)
@@ -90,20 +93,47 @@ export function AmendClinicalRecordPage() {
 
   const reasonError = submitted && reason.length < REASON_MIN_CHARS
 
-  function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setSubmitted(true)
     if (reason.trim().length < REASON_MIN_CHARS) return
 
     setSaving(true)
-    setTimeout(() => {
-      setSaving(false)
+    const token = localStorage.getItem("his_id_token")
+    const amendRecordType = recordType || "encounter"
+    // Use a placeholder UUID when no real recordId is available (demo mode)
+    const amendRecordId = recordId || "00000000-0000-0000-0000-000000000000"
+    const originalData = {
+      encounterDate: ORIGINAL_RECORD.encounterDate,
+      careUnit:      ORIGINAL_RECORD.careUnit,
+      chiefComplaint: ORIGINAL_RECORD.chiefComplaint,
+      clinician:     ORIGINAL_RECORD.clinician,
+    }
+    const amendedData = { encounterDate, careUnit, chiefComplaint, clinician }
+
+    try {
+      const res = await fetch(
+        `${API_BASE}/patients/${id}/amend/${amendRecordType}/${amendRecordId}`,
+        {
+          method:  "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+          body:    JSON.stringify({ originalData, amendedData, reason: reason.trim() }),
+        },
+      )
+      const json = await res.json()
+      if (!res.ok) {
+        toast.error("Amendment failed", { description: json.error ?? "Please try again." })
+        return
+      }
       toast.success("Amendment Submitted", {
-        description:
-          "The original record has been preserved and the amendment has been recorded.",
+        description: "The original record has been preserved and the amendment has been recorded.",
       })
       navigate(`/patients/${id}`)
-    }, 600)
+    } catch {
+      toast.error("Network error", { description: "Check your connection and try again." })
+    } finally {
+      setSaving(false)
+    }
   }
 
   return (

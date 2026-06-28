@@ -3,6 +3,7 @@ import { Link, useNavigate } from "react-router-dom"
 import { AlertCircle, AlertTriangle, Info, X, UserPlus } from "lucide-react"
 import { toast } from "sonner"
 import { Input } from "@/components/ui/input"
+import { API_BASE } from "@/lib/api"
 import { Label } from "@/components/ui/label"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
@@ -30,26 +31,16 @@ const BLOOD_GROUPS = ["A+", "A−", "B+", "B−", "AB+", "AB−", "O+", "O−", 
 
 type ConsentChoice = "Granted" | "Refused" | "Pending"
 
-// ── Mock duplicates (triggered when name contains "smithson") ─────
+// ── Duplicate candidate type ───────────────────────────────────────
 
-const MOCK_DUPLICATES = [
-  {
-    id: "dup1",
-    name: "James A. Smithson",
-    matchPct: 94,
-    dob: "Aug 14, 1955",
-    patientId: "CMR-8823-X",
-    lastLocation: "Northwest Regional Clinic",
-  },
-  {
-    id: "dup2",
-    name: "J. Smithson",
-    matchPct: 87,
-    dob: "Aug 14, 1955",
-    patientId: "CMR-1049-A",
-    lastLocation: "City General Hospital",
-  },
-]
+interface DuplicateCandidate {
+  id: string
+  name: string
+  matchPct: number
+  dob: string
+  patientId: string
+  lastLocation: string | null
+}
 
 // ── Section Heading ───────────────────────────────────────────────
 
@@ -175,10 +166,12 @@ function DuplicateDialog({
   open,
   onOpenChange,
   onCreateNew,
+  duplicates,
 }: {
   open: boolean
   onOpenChange: (open: boolean) => void
   onCreateNew: () => void
+  duplicates: DuplicateCandidate[]
 }) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -199,7 +192,7 @@ function DuplicateDialog({
 
         {/* Match cards */}
         <div className="flex flex-col gap-4 bg-background p-6">
-          {MOCK_DUPLICATES.map((dup) => (
+          {duplicates.map((dup) => (
             <div
               key={dup.id}
               className="flex flex-col gap-4 rounded-lg border border-border bg-card p-4 transition-shadow hover:shadow-sm sm:flex-row sm:items-center"
@@ -222,7 +215,7 @@ function DuplicateDialog({
                   </div>
                   <div className="col-span-2">
                     <span className="block text-xs text-muted-foreground">Last Encounter Location</span>
-                    <span className="text-sm text-foreground">{dup.lastLocation}</span>
+                    <span className="text-sm text-foreground">{dup.lastLocation ?? "—"}</span>
                   </div>
                 </div>
               </div>
@@ -315,7 +308,9 @@ export function PatientFormPage() {
   // UI State
   const [errors, setErrors]                   = useState<FormErrors>({})
   const [submitted, setSubmitted]             = useState(false)
+  const [submitting, setSubmitting]           = useState(false)
   const [showDuplicateDialog, setShowDuplicateDialog] = useState(false)
+  const [duplicates, setDuplicates]           = useState<DuplicateCandidate[]>([])
 
   function validate(): FormErrors {
     const e: FormErrors = {}
@@ -332,12 +327,43 @@ export function PatientFormPage() {
     return e
   }
 
-  function registerPatient() {
-    const pid = `CMR-${String(Math.floor(10000 + Math.random() * 90000))}`
-    toast.success("Patient Registered", {
-      description: `${fullName} has been registered successfully. Patient ID: ${pid}.`,
-    })
-    navigate("/patients")
+  async function submitToApi(force = false) {
+    const token = localStorage.getItem("his_id_token")
+    const url   = `${API_BASE}/patients${force ? "?force=true" : ""}`
+    setSubmitting(true)
+    try {
+      const res  = await fetch(url, {
+        method:  "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body:    JSON.stringify({
+          fullName, dob, sex, phone, region, address,
+          emergencyName, emergencyPhone, relationship,
+          consentData, consentReporting: consentReporting || undefined,
+          nationalId: nationalId || undefined,
+          bloodGroup: bloodGroup || undefined,
+          allergies:  allergies.length ? allergies : undefined,
+          conditions: conditions.length ? conditions : undefined,
+        }),
+      })
+      const json = await res.json()
+      if (res.status === 409) {
+        setDuplicates(json.duplicates ?? [])
+        setShowDuplicateDialog(true)
+        return
+      }
+      if (!res.ok) {
+        toast.error("Registration failed", { description: json.error ?? "Please try again." })
+        return
+      }
+      toast.success("Patient Registered", {
+        description: `${fullName} has been registered successfully. Patient ID: ${json.patientId}.`,
+      })
+      navigate("/patients")
+    } catch {
+      toast.error("Network error", { description: "Check your connection and try again." })
+    } finally {
+      setSubmitting(false)
+    }
   }
 
   function handleSubmit(e: React.FormEvent) {
@@ -346,14 +372,7 @@ export function PatientFormPage() {
     const errs = validate()
     setErrors(errs)
     if (Object.keys(errs).length > 0) return
-
-    // Mock duplicate detection: trigger when name contains "smithson"
-    if (fullName.toLowerCase().includes("smithson")) {
-      setShowDuplicateDialog(true)
-      return
-    }
-
-    registerPatient()
+    submitToApi(false)
   }
 
   return (
@@ -659,15 +678,16 @@ export function PatientFormPage() {
 
             {/* Form footer */}
             <div className="flex items-center justify-end gap-3 border-t border-border bg-muted/20 px-6 py-4">
-              <Button type="button" variant="outline" onClick={() => navigate("/patients")}>
+              <Button type="button" variant="outline" onClick={() => navigate("/patients")} disabled={submitting}>
                 Cancel
               </Button>
               <Button
                 type="submit"
+                disabled={submitting}
                 className="gap-2 bg-primary text-primary-foreground hover:bg-primary/90"
               >
                 <UserPlus size={16} />
-                Register Patient
+                {submitting ? "Registering…" : "Register Patient"}
               </Button>
             </div>
           </div>
@@ -678,9 +698,10 @@ export function PatientFormPage() {
       <DuplicateDialog
         open={showDuplicateDialog}
         onOpenChange={setShowDuplicateDialog}
+        duplicates={duplicates}
         onCreateNew={() => {
           setShowDuplicateDialog(false)
-          registerPatient()
+          submitToApi(true)
         }}
       />
     </TooltipProvider>

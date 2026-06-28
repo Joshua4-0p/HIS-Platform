@@ -1,5 +1,5 @@
 import { useState } from "react"
-import { Link, useNavigate } from "react-router-dom"
+import { Link, useNavigate, useSearchParams } from "react-router-dom"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
@@ -9,10 +9,12 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { AuthLayout, HISLogo } from "@/components/auth/auth-layout"
 import { cn } from "@/lib/utils"
+import { API_BASE } from "@/lib/api"
 import { toast } from "sonner"
 
 const schema = z
   .object({
+    code: z.string().min(1, "Verification code is required."),
     password: z.string().min(1, "New password is required."),
     confirm: z.string().min(1, "Please confirm your password."),
   })
@@ -80,10 +82,13 @@ function StrengthBar({ password }: { password: string }) {
 
 export function ResetPasswordPage() {
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
+  const emailFromUrl = searchParams.get("email") ?? ""
   const [showPassword, setShowPassword] = useState(false)
   const [showConfirm, setShowConfirm] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const [passwordValue, setPasswordValue] = useState("")
+  const [apiError, setApiError] = useState<string | null>(null)
 
   const {
     register,
@@ -91,17 +96,32 @@ export function ResetPasswordPage() {
     formState: { errors },
   } = useForm<FormValues>({ resolver: zodResolver(schema) })
 
-  async function onSubmit(_data: FormValues) {
-    const allPassed = POLICIES.every((p) => p.test(_data.password))
+  async function onSubmit(data: FormValues) {
+    const allPassed = POLICIES.every((p) => p.test(data.password))
     if (!allPassed) return
 
     setIsLoading(true)
-    await new Promise((r) => setTimeout(r, 1200))
-    setIsLoading(false)
-    toast.success("Password updated", {
-      description: "Your password has been set. Please sign in.",
-    })
-    navigate("/login")
+    setApiError(null)
+    try {
+      const res = await fetch(`${API_BASE}/auth/reset-password`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: emailFromUrl, code: data.code, newPassword: data.password }),
+      })
+      if (!res.ok) {
+        const json = await res.json()
+        setApiError(json.error ?? "Failed to reset password. Please try again.")
+        return
+      }
+      toast.success("Password updated", {
+        description: "Your password has been set. Please sign in.",
+      })
+      navigate("/login")
+    } catch {
+      setApiError("Network error. Please check your connection and try again.")
+    } finally {
+      setIsLoading(false)
+    }
   }
 
   return (
@@ -112,11 +132,38 @@ export function ResetPasswordPage() {
         <div className="p-10">
           <h1 className="text-2xl font-semibold text-foreground">Set a new password</h1>
           <p className="mt-1 mb-6 text-sm text-muted-foreground">
-            Your new password must be at least 10 characters and include an uppercase letter, a
-            number, and a special character.
+            Enter the 6-digit code sent to your email and choose a new password.
           </p>
 
+          {apiError && (
+            <div className="mb-4 flex items-start gap-2 rounded-md border border-destructive bg-destructive/10 p-3 text-sm text-destructive">
+              <AlertCircle className="mt-0.5 size-4 shrink-0" />
+              {apiError}
+            </div>
+          )}
+
           <form onSubmit={handleSubmit(onSubmit)} noValidate className="space-y-4">
+            {/* Verification code */}
+            <div className="space-y-1.5">
+              <Label htmlFor="code" className="text-sm font-medium">
+                Verification Code
+              </Label>
+              <Input
+                id="code"
+                type="text"
+                inputMode="numeric"
+                placeholder="123456"
+                aria-invalid={!!errors.code}
+                {...register("code")}
+              />
+              {errors.code && (
+                <p className="flex items-center gap-1 text-xs text-destructive">
+                  <AlertCircle className="size-3" />
+                  {errors.code.message}
+                </p>
+              )}
+            </div>
+
             {/* New Password */}
             <div className="space-y-1.5">
               <Label htmlFor="password" className="text-sm font-medium">

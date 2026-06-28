@@ -1,5 +1,5 @@
 import { useState } from "react"
-import { Link } from "react-router-dom"
+import { Link, useNavigate } from "react-router-dom"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { AuthLayout, HISLogo } from "@/components/auth/auth-layout"
+import { API_BASE } from "@/lib/api"
 
 const schema = z.object({
   email: z
@@ -20,6 +21,7 @@ const schema = z.object({
 type FormValues = z.infer<typeof schema>
 
 export function LoginPage() {
+  const navigate = useNavigate()
   const [showPassword, setShowPassword] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const [credentialError, setCredentialError] = useState(false)
@@ -30,12 +32,39 @@ export function LoginPage() {
     formState: { errors },
   } = useForm<FormValues>({ resolver: zodResolver(schema) })
 
-  async function onSubmit(_data: FormValues) {
+  async function onSubmit(data: FormValues) {
     setIsLoading(true)
     setCredentialError(false)
-    await new Promise((r) => setTimeout(r, 1500))
-    setIsLoading(false)
-    setCredentialError(true)
+    try {
+      const res = await fetch(`${API_BASE}/auth/login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: data.email, password: data.password }),
+      })
+      const json = await res.json()
+      if (!res.ok) {
+        setCredentialError(true)
+        return
+      }
+      if (json.challengeName === "NEW_PASSWORD_REQUIRED") {
+        navigate("/change-password", { state: { email: data.email, session: json.session } })
+        return
+      }
+      // Store tokens and navigate based on role
+      localStorage.setItem("his_access_token", json.accessToken)
+      localStorage.setItem("his_id_token", json.idToken)
+      localStorage.setItem("his_refresh_token", json.refreshToken)
+      localStorage.setItem("his_user", JSON.stringify(json.user))
+      if (json.user?.isSuperAdmin) {
+        navigate("/super-admin/dashboard")
+      } else {
+        navigate("/dashboard")
+      }
+    } catch {
+      setCredentialError(true)
+    } finally {
+      setIsLoading(false)
+    }
   }
 
   return (

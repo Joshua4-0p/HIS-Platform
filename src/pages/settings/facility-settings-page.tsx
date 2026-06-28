@@ -1,24 +1,72 @@
-import { useState } from "react"
+﻿import { useState, useEffect } from "react"
+import { Loader2 } from "lucide-react"
 import { toast } from "sonner"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
+import { API_BASE } from "@/lib/api"
 
 const REGIONS = [
   "Centre", "Littoral", "North West", "South West", "West", "North", "Far North", "Adamawa", "East", "South",
 ]
 
 export function FacilitySettingsPage() {
-  const [facilityName, setFacilityName] = useState("Central Hospital Yaoundé")
-  const [address, setAddress] = useState("Rue de l'Hôpital, Yaoundé, Centre Region, Cameroon")
-  const [region, setRegion] = useState("Centre")
-  const [phone, setPhone] = useState("+237 222 23 40 00")
-  const [email, setEmail] = useState("contact@centralhosp-yaounde.cm")
+  const [facilityName, setFacilityName] = useState("")
+  const [address, setAddress] = useState("")
+  const [region, setRegion] = useState("")
+  const [phone, setPhone] = useState("")
+  const [email, setEmail] = useState("")
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
 
-  function handleSubmit(e: React.FormEvent) {
+  const token = localStorage.getItem("his_id_token")
+
+  useEffect(() => {
+    fetch(`${API_BASE}/settings/facility`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then((r) => r.json())
+      .then((data) => {
+        setFacilityName(data.facilityName ?? "")
+        setAddress(data.address ?? "")
+        setRegion(data.region ?? "")
+        setPhone(data.contactPhone ?? "")
+        setEmail(data.contactEmail ?? "")
+      })
+      .catch(() => toast.error("Failed to load facility settings."))
+      .finally(() => setLoading(false))
+  }, [token])
+
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    toast.success("Facility profile updated successfully.")
+    setSaving(true)
+    try {
+      const res = await fetch(`${API_BASE}/settings/facility`, {
+        method: "PUT",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ facilityName, address, region, contactPhone: phone, contactEmail: email }),
+      })
+      const json = await res.json()
+      if (!res.ok) {
+        toast.error("Update failed", { description: json.error ?? "Please try again." })
+        return
+      }
+      toast.success("Facility profile updated successfully.")
+    } catch {
+      toast.error("Network error. Please check your connection.")
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center gap-2 py-40 text-muted-foreground">
+        <Loader2 size={20} className="animate-spin" />
+        <span className="text-sm">Loading settings...</span>
+      </div>
+    )
   }
 
   return (
@@ -61,6 +109,7 @@ export function FacilitySettingsPage() {
                 onChange={(e) => setRegion(e.target.value)}
                 className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
               >
+                <option value="">Select a region</option>
                 {REGIONS.map((r) => <option key={r}>{r}</option>)}
               </select>
             </div>
@@ -88,7 +137,12 @@ export function FacilitySettingsPage() {
           </div>
 
           <div className="flex items-center justify-end border-t border-border bg-muted/20 px-6 py-4">
-            <Button type="submit" className="bg-primary text-primary-foreground hover:bg-primary/90">
+            <Button
+              type="submit"
+              disabled={saving}
+              className="gap-2 bg-primary text-primary-foreground hover:bg-primary/90"
+            >
+              {saving && <Loader2 size={16} className="animate-spin" />}
               Save Changes
             </Button>
           </div>

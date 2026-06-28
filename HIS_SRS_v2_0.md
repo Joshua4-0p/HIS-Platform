@@ -133,26 +133,55 @@ Following architectural review of SRS v1.0, the service inventory has been ratio
 | **Amazon Athena REMOVED** | No functional requirement justifies querying raw S3 data via Athena. All analytics are served from RDS. Athena adds cost and complexity with zero benefit in the current scope. |
 | **AWS Glue REPLACED by Lambda-based ETL** | AWS Glue is designed for big-data ETL on millions of records. Hospital CSV onboarding involves thousands of records, well within Lambda's 15-minute timeout and 10 MB processing capacity. A dedicated bulk-ingestion Lambda function is simpler, faster to implement, and free within the AWS free tier. |
 | **Amazon ElastiCache (Redis) REMOVED** | Redis requires a dedicated always-on VPC node (~$25+/month), cache invalidation logic, and operational overhead. For a 200-user MVP, PostgreSQL materialized views refreshed by pg_cron achieve sub-200 ms dashboard queries without any additional infrastructure. |
-| **Amazon RDS Proxy REMOVED** | RDS Proxy is justified at 500+ concurrent Lambda executions and is not cost-effective for an MVP. Connection limits are managed by capping Lambda concurrency and using Lambda RDS connection reuse via VPC NAT. |
-| **Multi-AZ RDS: SHOULD (not SHALL) for MVP** | Multi-AZ doubles RDS cost. For the academic MVP, daily automated snapshots with 30-day retention are the primary recovery mechanism. Multi-AZ is a SHOULD-level recommendation for production deployment. |
+| **Amazon RDS Proxy REMOVED** | RDS Proxy is justified at 500+ concurrent Lambda executions and is not cost-effective for an MVP. Connection limits are managed by capping Lambda concurrency at 200 (REQ-NF-021). |
+| **Multi-AZ RDS: SHOULD (not SHALL) for MVP** | Multi-AZ doubles RDS cost. For the academic MVP, automated snapshots with 2-day retention are the primary recovery mechanism. Multi-AZ is a SHOULD-level recommendation for production deployment (REQ-NF-018). |
+| **NAT Gateway REMOVED (MVP)** | A NAT Gateway costs $32.40/month ($0.045/hr fixed + data charges) — unacceptable under the $10/month MVP budget. Instead: (1) auth-service Lambda is deployed without VPC attachment — it calls only Cognito (a public AWS endpoint) and has no RDS dependency, so it requires no VPC; (2) the remaining 9 Lambdas reside in VPC private isolated subnets with a single SNS VPC Interface Endpoint (~$7.20/month) and a free S3 VPC Gateway Endpoint; (3) RDS connections use IAM database authentication, eliminating any Secrets Manager VPC endpoint requirement. Total Year 1 cost: ~$7.20/month — within the $10/month constraint. NAT Gateway is a production P1 enhancement. |
+| **VPC Interface Endpoints — REDUCED TO ONE (SNS)** | Lambda functions in VPC private isolated subnets cannot reach AWS APIs without VPC Interface Endpoints. Three endpoints were initially required (Secrets Manager, SNS, Cognito-IDP — $7.20/month each = $21.60/month). Optimization reduces this to one: auth-service (the only Lambda calling Cognito) is deployed outside the VPC; RDS IAM database authentication eliminates all Secrets Manager runtime calls from VPC Lambdas (no stored DB password, token generated locally by Lambda execution role). Only the SNS VPC Interface Endpoint is retained — required by lab-service, transfer-service, notification-service, and bulk-ingestion for event publishing from within the VPC. |
+| **Aurora Serverless v2 NOT USED (MVP)** | A Well-Architected cost review established that Aurora Serverless v2 has a hard minimum floor of 0.5 ACU and never pauses to zero. At $0.12/ACU-hour, the minimum cost is $43.20/month — more than three times the cost of RDS db.t3.micro ($13.50/month post-free-tier, $0 during free tier). RDS PostgreSQL 15 satisfies all functional requirements identically (pg_trgm, GIN indexes, materialized views, pg_cron, Flyway). CDK Stack 2 is designed for a direct upgrade to Aurora Serverless v2 for production without any Lambda code changes. |
+| **AWS WAF DEFERRED (MVP)** | AWS WAF costs a minimum of $5/WebACL/month regardless of traffic volume. For a 1–2 tenant academic MVP, API Gateway HTTP API usage plan throttling combined with Cognito JWT authorisation provides sufficient protection. WAF is a production P0 security requirement. |
+| **KMS Customer Managed Keys DEFERRED (MVP)** | KMS CMKs cost $1/key/month. AWS managed encryption keys (aws/rds, aws/s3, aws/secretsmanager) provide identical AES-256 encryption at rest with no monthly key cost. The only capability lost is custom key policy control and manual rotation scheduling — both are production P1 requirements. |
 
 **The final 13-service architecture is:**
 
 | **#** | **AWS Service** | **Purpose** | **Tier** |
 | --- | --- | --- | --- |
 | 1 | **AWS Amplify (+ built-in CloudFront)** | Frontend hosting, CDN, CI/CD deployment pipeline. | Tier 0 — Presentation |
-| 2 | **AWS WAF** | Web Application Firewall — OWASP Top 10 protection. | Tier 0 — Presentation |
-| 3 | **Amazon API Gateway v2 (HTTP API)** | Single HTTPS entry point for all Lambda functions. | Tier 0 — Presentation |
+| 2 | **AWS WAF** *(Production only — deferred from MVP. API Gateway throttling and Cognito JWT authoriser serve as compensating controls during MVP. WAF is a go-live P0 requirement.)* | Web Application Firewall — OWASP Top 10 protection. | Tier 0 — Presentation |
+| 3 | **Amazon API Gateway v2 (HTTP API)** | Single HTTPS entry point for all Lambda functions. Usage plan throttling applied for rate limiting during MVP (compensating control for deferred WAF). | Tier 0 — Presentation |
 | 4 | **Amazon Cognito** | User authentication, JWT issuance, and password management. | Tier 0 — Presentation |
-| 5 | **AWS Lambda (10 functions)** | All backend business logic — serverless, auto-scaling. | Tier 1 — Backend |
-| 6 | **Amazon RDS for PostgreSQL 15** | Primary relational database for all clinical and operational data. | Tier 2 — Data |
-| 7 | **Amazon S3** | CSV uploads, static frontend assets, CloudTrail log storage. | Tier 2 — Data |
-| 8 | **AWS KMS** | Encryption key management for RDS, S3, and Secrets Manager. | Tier 2 — Data |
-| 9 | **AWS Secrets Manager** | Runtime retrieval of database credentials and API secrets. | Tier 2 — Data |
-| 10 | **Amazon SES** | Transactional email: alerts, notifications, daily summaries. | Tier 3 — Notifications |
-| 11 | **Amazon SNS** | Internal event bus: connects Lambda triggers to SES and other subscribers. | Tier 3 — Notifications |
-| 12 | **AWS CloudTrail** | Infrastructure-level audit: records all AWS API calls. | Tier 4 — Observability |
-| 13 | **Amazon CloudWatch** | Monitoring, structured logs, and threshold alarms. | Tier 4 — Observability |
+| 5 | **AWS Lambda (10 functions)** | All backend business logic — serverless, auto-scaling. auth-service deployed without VPC attachment (calls Cognito only — no RDS dependency). Nine Lambdas in VPC private isolated subnets with strict outbound security group rules. | Tier 1 — Backend |
+| 6 | **Amazon RDS for PostgreSQL 15 (db.t3.micro, single-AZ, AWS managed encryption)** — MVP configuration. Free for 12 months under AWS free tier; $13.50/month after. Upgrade path to Aurora Serverless v2 is designed into CDK Stack 2 for production (no Lambda code changes required). | Primary relational database for all clinical and operational data. | Tier 2 — Data |
+| 7 | **Amazon S3** | CSV uploads, static frontend assets, CloudTrail log storage. Accessed from Lambda via VPC Gateway Endpoint (free — no NAT required). | Tier 2 — Data |
+| 8 | **AWS Managed Encryption Keys** *(aws/rds, aws/s3, aws/secretsmanager)* — MVP configuration. AES-256 encryption at rest is maintained. Customer Managed Keys (KMS CMKs) with annual rotation are a production P1 enhancement. | Encryption key management for RDS, S3, and Secrets Manager. | Tier 2 — Data |
+| 9 | **AWS Secrets Manager** | Runtime retrieval of database credentials and API secrets. No credentials in source code or environment variables. | Tier 2 — Data |
+| 10 | **Amazon SES** | Transactional email: alerts, notifications, daily summaries. Sandbox mode for MVP (3 verified demo addresses). Production access required before go-live. | Tier 3 — Notifications |
+| 11 | **Amazon SNS** | Internal event bus: connects Lambda triggers to SES and other subscribers. No sandbox restrictions. | Tier 3 — Notifications |
+| 12 | **Amazon SQS** *(Dead Letter Queue for bulk-ingestion Lambda)* | Captures failed bulk-ingestion Lambda invocations for retry and error analysis. Prevents silent mid-CSV data loss. | Tier 1 — Backend |
+| 13 | **AWS CloudTrail** | Infrastructure-level audit: records all AWS API calls. | Tier 4 — Observability |
+| 14 | **Amazon CloudWatch** | Monitoring, structured logs, and threshold alarms. | Tier 4 — Observability |
+
+### 2.1.3  MVP vs Production Configuration
+
+The following table documents which architectural decisions apply to the academic MVP and which are deferred to production, with cost justification for each deferral. All deferred services remain functionally satisfied through MVP-appropriate compensating controls. No SRS functional requirement is dropped.
+
+| Feature | MVP Configuration | Cost (MVP) | Production Configuration | Cost (Prod) | SRS Ref |
+| --- | --- | --- | --- | --- | --- |
+| **Primary database** | RDS PostgreSQL 15, db.t3.micro, single-AZ | $0 (free tier 12 mo), $13.50/mo after | Aurora Serverless v2 or RDS Multi-AZ | $43+/mo | REQ-NF-017/018 |
+| **DB backup retention** | 2 days (cost management) | Included | 30 days + PITR | Included | REQ-NF-017 |
+| **Encryption keys** | AWS managed keys (aws/rds, aws/s3, aws/secretsmanager) | $0 | KMS Customer Managed Keys, annual rotation | $3/mo (3 CMKs) | REQ-NF-007/014 |
+| **Web Application Firewall** | Deferred — API GW throttling + Cognito JWT as compensating control | $0 | AWS WAF with Managed Rules Common Rule Set | $7+/mo | REQ-NF-010 |
+| **Lambda network placement** | auth-service: no VPC (direct Cognito access). 9 Lambdas in private isolated subnets + 1 SNS VPC Interface Endpoint. IAM DB auth eliminates Secrets Manager endpoint. | $7.20/mo | Private subnet + NAT Gateway | $32/mo | COM-004 |
+| **Lambda provisioned concurrency** | Disabled — accept 1–2s cold starts | $0 | Enabled for patient-service and analytics-service | $5–15/mo | REQ-NF-005 |
+| **SES email sending** | Sandbox — verified demo addresses only | $0.10/mo | Production access — all recipients | $0.10/mo | REQ-F-066/067 |
+| **GuardDuty** | Disabled | $0 | Foundational mode only (no protection plans) | ~$1/mo | Security best practice |
+| **AWS Region** | us-east-1 (N. Virginia) | — | af-south-1 (Cape Town) for data residency | — | Section 2.4.1 |
+| **X-Ray tracing** | Disabled | $0 | Enabled on all Lambda functions | Trace-based pricing | REQ-NF-024 |
+
+**Estimated monthly cost:**
+
+- MVP Year 1 (within AWS free tier): **~$7.20/month** (SNS VPC Interface Endpoint only — all other services remain free-tier; within the $10/month budget constraint)
+- MVP Year 2+ (post-free-tier): **~$24.45/month** ($7.20 SNS endpoint + $13.50 RDS db.t3.micro + $3.75 misc SES/S3/SQS)
+- Full production configuration: **$89+/month**
 
 ### 2.1.2  System Context Diagram
 
@@ -195,7 +224,7 @@ Following architectural review of SRS v1.0, the service inventory has been ratio
 
 ### 2.4.1  Cloud Infrastructure
 
-The entire backend is deployed on Amazon Web Services (AWS) in the af-south-1 (Cape Town) region, selected for data residency proximity to Cameroon. The system uses a serverless architecture built on AWS Lambda, with no persistent virtual machines or dedicated application servers. The 13 AWS services listed in Section 2.1.1 constitute the complete operating environment for this version.
+The entire backend is deployed on Amazon Web Services (AWS) in the **us-east-1 (N. Virginia)** region for the MVP implementation. This region is selected for its broader service availability, lower cost compared to af-south-1, and wider AWS free tier coverage during the academic evaluation period. Production deployment targeting Cameroonian data residency under Law No. 2010/012 should migrate to af-south-1 (Cape Town) or consider AWS Local Zones in the region. The system uses a serverless architecture built on AWS Lambda, with no persistent virtual machines or dedicated application servers. The 14 AWS services and components listed in Section 2.1.1 constitute the complete operating environment for this version.
 
 ### 2.4.2  Client Environment
 
@@ -218,6 +247,7 @@ Frontend: React.js v18, Recharts for data visualisation, ShadCN UI for component
 | **English Language Only** | The UI and documentation SHALL be in English. French/Pidgin support is deferred. |
 | **Academic MVP Scope** | The system is implemented as a Minimum Viable Product for academic evaluation. Full production hardening and penetration testing are deferred to post-project phases. |
 | **Cost-Effectiveness** | The architecture SHALL minimise recurring AWS costs. Services used SHALL be justifiable against at least one functional requirement. Unused or prematurely complex services SHALL NOT be included. |
+| **MVP Budget Constraint** | The academic MVP architecture is constrained to a maximum of $10/month in recurring AWS costs. Services that would individually breach this ceiling — AWS WAF ($5/WebACL), KMS Customer Managed Keys ($1/key), NAT Gateway ($32.40/month), Aurora Serverless v2 ($43.20/month minimum), and Lambda provisioned concurrency — are deferred to the production configuration. Each deferral is compensated by a documented alternative control or an accepted risk appropriate to the MVP scope. See Section 2.1.3 for the full MVP vs Production configuration table. |
 
 ## 2.6  Assumptions and Dependencies
 
@@ -278,7 +308,7 @@ Frontend: React.js v18, Recharts for data visualisation, ShadCN UI for component
 | **Interface** | **Service** | **Description** |
 | --- | --- | --- |
 | **Authentication** | Amazon Cognito | The system SHALL use Amazon Cognito User Pools for all user authentication. JWT tokens SHALL be validated on every API request via an API Gateway Cognito Authoriser. Refresh tokens SHALL be used by the frontend to silently renew access tokens. |
-| **Database** | Amazon RDS (PostgreSQL 15) | The system SHALL use Amazon RDS for PostgreSQL as the primary relational database. All Lambda functions SHALL connect to RDS within the VPC private subnet using credentials from AWS Secrets Manager. |
+| **Database** | Amazon RDS for PostgreSQL 15 (db.t3.micro, single-AZ) | The system SHALL use Amazon RDS for PostgreSQL 15 as the primary relational database. MVP configuration: db.t3.micro instance, single-AZ, AWS managed encryption keys, 2-day automated backup retention. The 9 Lambda functions that access RDS SHALL connect via IAM database authentication: Lambda execution roles are granted `rds:connect` permission and generate a short-lived auth token locally at cold start using `Signer.getAuthToken()` — no stored database password and no Secrets Manager call at runtime. auth-service Lambda is deployed without VPC attachment (it has no RDS dependency). The 9 VPC-bound Lambdas reside in VPC private isolated subnets; RDS resides in the VPC private subnet with no public IP, accessible only from the Lambda security group on port 5432. The CDK stack is designed for direct upgrade to Aurora Serverless v2 (PostgreSQL-compatible) for production without any Lambda code changes. |
 | **File Storage** | Amazon S3 | The system SHALL use S3 for CSV uploads, static frontend assets, and CloudTrail log storage. Pre-signed URLs SHALL be used for all client-initiated uploads to bypass Lambda payload limits. |
 | **ETL Processing** | AWS Lambda (Bulk Ingestion Function) | A dedicated bulk-ingestion Lambda function SHALL process uploaded CSV files from S3, validate each row, resolve duplicates, and batch-insert records into RDS PostgreSQL using parameterised bulk inserts. |
 | **Notifications** | Amazon SES | The system SHALL use Amazon SES to deliver all outbound email notifications, including critical lab alerts, transfer approvals, ETL completion reports, and daily summaries. |
@@ -463,14 +493,14 @@ Performance benchmarks apply under normal operating conditions: up to 200 concur
 
 | **Req. ID** | **Priority** | **Description** | **Rationale** |
 | --- | --- | --- | --- |
-| **REQ-NF-007** | **High** | All patient data stored in Amazon RDS and Amazon S3 SHALL be encrypted at rest using AES-256 encryption managed by AWS KMS Customer Managed Keys (CMKs). | Mandatory for Cameroon Data Protection Law No. 2010/012 compliance. |
-| **REQ-NF-008** | **High** | All data transmitted between the client browser and the API SHALL be encrypted using TLS 1.3. Connections using TLS 1.2 or lower SHALL be rejected by the WAF. (Note: all references to TLS in this document refer to TLS 1.3 as the minimum, resolving the TLS version inconsistency identified in SRS v1.0.) | TLS 1.3 is the current standard. |
-| **REQ-NF-009** | **High** | No database credentials, API keys, or authentication secrets SHALL be stored in application source code, environment variables, or deployment packages. All secrets SHALL be retrieved at runtime from AWS Secrets Manager. | Hardcoded credentials are the most common cause of cloud data breaches. |
-| **REQ-NF-010** | **High** | AWS WAF SHALL be configured with the AWS Managed Rules Common Rule Set to block OWASP Top 10 attack vectors including SQL injection, XSS, and HTTP flood attacks. | Provides baseline protection against the most prevalent web threats. |
+| **REQ-NF-007** | **High** | All patient data stored in Amazon RDS and Amazon S3 SHALL be encrypted at rest using AES-256 encryption. **MVP:** AWS managed encryption keys (aws/rds, aws/s3, aws/secretsmanager) are used — AES-256 is fully applied at no additional cost. **Production:** AWS KMS Customer Managed Keys (CMKs) SHALL be used to satisfy Cameroon Data Protection Law audit requirements for key policy control. | Mandatory for Cameroon Data Protection Law No. 2010/012 compliance. AES-256 at rest is achieved in both configurations. |
+| **REQ-NF-008** | **High** | All data transmitted between the client browser and the API SHALL be encrypted using TLS 1.3. Connections using TLS 1.2 or lower SHALL be rejected. **MVP compensating control:** TLS 1.3 minimum is enforced by API Gateway HTTP API security policy. WAF TLS enforcement is a production enhancement. (Note: all references to TLS in this document refer to TLS 1.3 as the minimum, resolving the TLS version inconsistency identified in SRS v1.0.) | TLS 1.3 is the current standard. |
+| **REQ-NF-009** | **High** | No database credentials, API keys, or authentication secrets SHALL be stored in application source code, environment variables, or deployment packages. RDS database access SHALL use IAM database authentication tokens generated at runtime by the Lambda execution role — no database password is stored or transmitted at any point. API and infrastructure secrets (e.g., GitHub OAuth token for the CI/CD pipeline) SHALL be stored in AWS Secrets Manager and accessed at CDK deploy time only; no VPC-bound Lambda calls Secrets Manager at runtime. | Hardcoded credentials are the most common cause of cloud data breaches. IAM DB auth is more secure than password-based access: tokens are short-lived (15 minutes) and auto-rotate. |
+| **REQ-NF-010** | **High** | AWS WAF SHALL be configured with the AWS Managed Rules Common Rule Set to block OWASP Top 10 attack vectors including SQL injection, XSS, and HTTP flood attacks. **MVP status: Deferred to production.** MVP compensating controls: (a) API Gateway HTTP API usage plan throttling limits HTTP flood vectors; (b) Cognito JWT RS256 authorisation on every request blocks unauthenticated SQL injection; (c) parameterised queries in all Lambda functions prevent SQL injection at the application layer. WAF is a go-live P0 security hardening requirement before real hospital use. | Provides baseline protection against the most prevalent web threats. |
 | **REQ-NF-011** | **High** | Every Lambda function SHALL validate the JWT token and check the user's permissions against the RDS permissions table before processing any business logic. | Prevents any endpoint from being called without verified authorisation. |
 | **REQ-NF-012** | **High** | User account passwords SHALL be stored exclusively in Amazon Cognito using Cognito's built-in secure password hashing. The application layer SHALL never handle or store plaintext passwords. | Password security is delegated entirely to Cognito's battle-tested implementation. |
-| **REQ-NF-013** | **High** | The Amazon RDS instance SHALL reside in a VPC private subnet with no public IP address. All inbound connections SHALL originate exclusively from Lambda functions within the same VPC. | Eliminates direct internet access to the database layer. |
-| **REQ-NF-014** | **Medium** | KMS Customer Managed Keys SHALL be rotated automatically on an annual basis. | Key rotation limits the impact of key compromise. |
+| **REQ-NF-013** | **High** | The Amazon RDS instance SHALL reside in a VPC private subnet with no public IP address. RDS accepts inbound connections on port 5432 exclusively from the Lambda security group. **MVP configuration:** auth-service Lambda is deployed without VPC attachment (no RDS access needed; calls only Cognito over the internet). Nine Lambda functions reside in VPC private isolated subnets; Lambda SG restricts outbound to port 5432 to RDS SG only, and port 443 to VPC CIDR only (for the SNS VPC Interface Endpoint). One SNS VPC Interface Endpoint (~$7.20/month) serves Lambdas that publish events from within the VPC. RDS remains in the private subnet and is unreachable from the internet. | Eliminates direct internet access to the database layer regardless of Lambda subnet placement. |
+| **REQ-NF-014** | **Medium** | KMS Customer Managed Keys SHALL be rotated automatically on an annual basis. **MVP status: Not applicable** — AWS managed keys are used for MVP and managed automatically by AWS. CMK rotation is a production P1 requirement when KMS CMKs are introduced. | Key rotation limits the impact of key compromise. |
 | **REQ-NF-015** | **Medium** | Ministry-level dashboards and cross-hospital aggregate reports SHALL display only anonymised, de-identified data. No individual patient names, identifiers, or contact details SHALL appear in these views. | Protects patient privacy in public health reporting contexts. |
 
 ### 3.3.3  Reliability and Availability Requirements
@@ -478,7 +508,7 @@ Performance benchmarks apply under normal operating conditions: up to 200 concur
 | **Req. ID** | **Priority** | **Description** | **Rationale** |
 | --- | --- | --- | --- |
 | **REQ-NF-016** | **High** | The system SHALL achieve a minimum uptime of 99.5% measured on a monthly basis, excluding scheduled maintenance windows. | Hospital information systems must be consistently available during working hours. |
-| **REQ-NF-017** | **High** | Automated RDS database snapshots SHALL be taken daily and retained for a minimum of 30 days. Point-in-time recovery SHALL be enabled. This is the primary recovery mechanism for the MVP. | Provides a recovery path in the event of data corruption or accidental deletion. |
+| **REQ-NF-017** | **High** | Automated RDS database snapshots SHALL be taken daily and retained for a minimum of 30 days. Point-in-time recovery SHALL be enabled. This is the primary recovery mechanism. **MVP configuration:** Backup retention is set to 2 days for cost management (RDS backup storage is charged beyond the instance storage size). The CDK parameter is annotated with the production target of 30 days and can be changed in a single configuration update. | Provides a recovery path in the event of data corruption or accidental deletion. |
 | **REQ-NF-018** | **Medium** | Amazon RDS SHOULD be configured with Multi-AZ deployment for production deployment after the MVP phase. For the academic MVP, single-AZ with daily snapshots (REQ-NF-017) is the accepted configuration. This resolves the MVP vs. Multi-AZ contradiction in SRS v1.0. | Multi-AZ doubles RDS cost and is not cost-effective for an academic MVP. |
 | **REQ-NF-019** | **Medium** | CloudWatch alarms SHALL notify the system administrator via SNS within 5 minutes of any Lambda function error rate exceeding 5 errors per minute or any RDS CPU utilisation exceeding 80% for more than 5 consecutive minutes. | Early warning enables preventive intervention. |
 

@@ -13,11 +13,13 @@ import {
   Users,
   AlertTriangle,
   CalendarDays,
+  Loader2,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Skeleton } from "@/components/ui/skeleton"
 import { cn } from "@/lib/utils"
+import { API_BASE } from "@/lib/api"
 
 // ── Types ─────────────────────────────────────────────────────────
 
@@ -34,36 +36,14 @@ interface Patient {
   consentStatus: ConsentStatus
 }
 
-// ── Mock data ─────────────────────────────────────────────────────
-
-const ALL_PATIENTS: Patient[] = [
-  { id: "1",  patientId: "CMR-89214", name: "Aisha Ndiaye",        dob: "12/04/1985", phone: "+237 6 78 90 12 34", region: "Centre (Yaoundé)",       registered: "Oct 12, 2023", consentStatus: "Granted" },
-  { id: "2",  patientId: "CMR-74102", name: "Jean-Pierre Eto'o",   dob: "05/11/1992", phone: "+237 6 99 11 22 33", region: "Littoral (Douala)",       registered: "Nov 04, 2023", consentStatus: "Pending" },
-  { id: "3",  patientId: "CMR-90553", name: "Marie Abanda",        dob: "22/08/1978", phone: "+237 6 55 44 33 22", region: "West (Bafoussam)",        registered: "Sep 28, 2023", consentStatus: "Refused" },
-  { id: "4",  patientId: "CMR-11209", name: "Paul Biya Jr.",       dob: "13/02/1945", phone: "+237 6 12 34 56 78", region: "South (Sangmélima)",      registered: "Jan 15, 2024", consentStatus: "Granted" },
-  { id: "5",  patientId: "CMR-33417", name: "Fatima Moussa",       dob: "07/09/2000", phone: "+237 6 22 33 44 55", region: "North (Garoua)",          registered: "Feb 20, 2024", consentStatus: "Granted" },
-  { id: "6",  patientId: "CMR-56789", name: "Emmanuel Njoya",      dob: "14/03/1975", phone: "+237 6 77 88 99 00", region: "Far North (Maroua)",      registered: "Mar 05, 2024", consentStatus: "Pending" },
-  { id: "7",  patientId: "CMR-67890", name: "Grace Atanga",        dob: "29/12/1988", phone: "+237 6 44 55 66 77", region: "North West (Bamenda)",    registered: "Apr 10, 2024", consentStatus: "Granted" },
-  { id: "8",  patientId: "CMR-78901", name: "Roger Mbappé",        dob: "18/07/1965", phone: "+237 6 11 22 33 44", region: "South West (Buea)",       registered: "May 01, 2024", consentStatus: "Refused" },
-  { id: "9",  patientId: "CMR-90123", name: "Sylvie Bello",        dob: "03/06/1991", phone: "+237 6 55 11 22 33", region: "Adamawa (Ngaoundéré)",   registered: "Jun 12, 2024", consentStatus: "Granted" },
-  { id: "10", patientId: "CMR-01234", name: "Théodore Nkemelu",   dob: "21/10/1983", phone: "+237 6 88 44 55 66", region: "East (Bertoua)",          registered: "Jul 01, 2024", consentStatus: "Pending" },
-  { id: "11", patientId: "CMR-12345", name: "Brigitte Ewane",      dob: "09/01/1979", phone: "+237 6 33 77 88 99", region: "South (Ebolowa)",         registered: "Jul 18, 2024", consentStatus: "Granted" },
-  { id: "12", patientId: "CMR-23456", name: "Cédric Kamdem",      dob: "17/05/1990", phone: "+237 6 66 22 11 44", region: "West (Dschang)",          registered: "Aug 04, 2024", consentStatus: "Granted" },
-]
+interface Stats {
+  total: number
+  granted: number
+  pendingOrRefused: number
+  thisMonth: number
+}
 
 const PAGE_SIZE = 5
-
-// ── Derived stats (from full dataset, not search results) ─────────
-
-const STATS = {
-  total: ALL_PATIENTS.length,
-  granted: ALL_PATIENTS.filter((p) => p.consentStatus === "Granted").length,
-  pendingOrRefused: ALL_PATIENTS.filter((p) => p.consentStatus !== "Granted").length,
-  thisMonth: ALL_PATIENTS.filter((p) => {
-    // Registered in the most recent month present in mock data
-    return p.registered.startsWith("Aug") || p.registered.startsWith("Jul")
-  }).length,
-}
 
 // ── CSV export ────────────────────────────────────────────────────
 
@@ -132,44 +112,57 @@ function ConsentBadge({ status }: { status: ConsentStatus }) {
 // ── Page ──────────────────────────────────────────────────────────
 
 export function PatientSearchPage() {
-  const [query, setQuery] = useState("")
+  const [query, setQuery]                   = useState("")
   const [debouncedQuery, setDebouncedQuery] = useState("")
-  const [isSearching, setIsSearching] = useState(false)
-  const [page, setPage] = useState(1)
+  const [isSearching, setIsSearching]       = useState(false)
+  const [page, setPage]                     = useState(1)
+  const [patients, setPatients]             = useState<Patient[]>([])
+  const [stats, setStats]                   = useState<Stats>({ total: 0, granted: 0, pendingOrRefused: 0, thisMonth: 0 })
+  const [loading, setLoading]               = useState(true)
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  // 300 ms debounce per UI-004
+  async function fetchPatients(q?: string) {
+    const token = localStorage.getItem("his_id_token")
+    const url = q ? `${API_BASE}/patients?q=${encodeURIComponent(q)}` : `${API_BASE}/patients`
+    try {
+      const res  = await fetch(url, { headers: { Authorization: `Bearer ${token}` } })
+      const data = await res.json()
+      if (res.ok) {
+        setPatients(data.patients ?? [])
+        if (data.stats) setStats(data.stats)
+      }
+    } catch { /* silently ignore */ }
+  }
+
+  // Initial load
+  useEffect(() => {
+    fetchPatients().finally(() => setLoading(false))
+  }, [])
+
+  // 300ms debounce per UI-004
   useEffect(() => {
     if (timerRef.current) clearTimeout(timerRef.current)
     if (!query.trim()) {
       setDebouncedQuery("")
       setIsSearching(false)
+      fetchPatients()
       return
     }
     setIsSearching(true)
-    timerRef.current = setTimeout(() => {
+    timerRef.current = setTimeout(async () => {
       setDebouncedQuery(query.trim())
+      await fetchPatients(query.trim())
       setIsSearching(false)
       setPage(1)
     }, 300)
     return () => { if (timerRef.current) clearTimeout(timerRef.current) }
   }, [query])
 
-  // When no query, show all patients; when query, filter
-  const filtered = debouncedQuery
-    ? ALL_PATIENTS.filter(
-        (p) =>
-          p.name.toLowerCase().includes(debouncedQuery.toLowerCase()) ||
-          p.patientId.toLowerCase().includes(debouncedQuery.toLowerCase()) ||
-          p.phone.includes(debouncedQuery)
-      )
-    : ALL_PATIENTS
-
-  const totalResults = filtered.length
+  const totalResults = patients.length
   const totalPages = Math.max(1, Math.ceil(totalResults / PAGE_SIZE))
   const startIndex = (page - 1) * PAGE_SIZE
   const endIndex = Math.min(startIndex + PAGE_SIZE, totalResults)
-  const pageResults = filtered.slice(startIndex, endIndex)
+  const pageResults = patients.slice(startIndex, endIndex)
 
   function pageNumbers(): (number | "...")[] {
     if (totalPages <= 7) return Array.from({ length: totalPages }, (_, i) => i + 1)
@@ -196,7 +189,7 @@ export function PatientSearchPage() {
           </div>
           <button
             type="button"
-            onClick={() => exportPatientsCsv(filtered, "patients.csv")}
+            onClick={() => exportPatientsCsv(patients, "patients.csv")}
             className="inline-flex shrink-0 items-center gap-1.5 rounded-md border border-border px-3 py-2 text-sm font-medium text-foreground transition-colors hover:bg-muted"
           >
             <Download size={16} /> Export CSV
@@ -210,20 +203,28 @@ export function PatientSearchPage() {
         </div>
       </div>
 
-      {/* ── Stat cards — always visible ── */}
+      {/* ── Stat cards ── */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <StatCard label="Total Patients" value={STATS.total} subtext="Registered in this facility"
+        <StatCard label="Total Patients" value={loading ? "—" : stats.total} subtext="Registered in this facility"
           icon={<Users size={20} className="text-primary" />} iconBg="bg-primary/10" />
-        <StatCard label="Consent Granted" value={STATS.granted} subtext="Active clinical records"
+        <StatCard label="Consent Granted" value={loading ? "—" : stats.granted} subtext="Active clinical records"
           icon={<CheckCircle size={20} className="text-[#10B981]" />} iconBg="bg-[#10B981]/10" />
-        <StatCard label="Consent Pending / Refused" value={STATS.pendingOrRefused} subtext="Requires follow-up"
+        <StatCard label="Consent Pending / Refused" value={loading ? "—" : stats.pendingOrRefused} subtext="Requires follow-up"
           icon={<AlertTriangle size={20} className="text-[#F59E0B]" />} iconBg="bg-[#F59E0B]/10" />
-        <StatCard label="Registered This Month" value={STATS.thisMonth} subtext="New records this month"
+        <StatCard label="Registered This Month" value={loading ? "—" : stats.thisMonth} subtext="New records this month"
           icon={<CalendarDays size={20} className="text-primary" />} iconBg="bg-primary/10" />
       </div>
 
-      {/* ── Loading skeletons (only while debouncing a query) ── */}
-      {isSearching && (
+      {/* ── Initial loading ── */}
+      {loading && (
+        <div className="flex items-center justify-center gap-2 py-16 text-muted-foreground">
+          <Loader2 size={20} className="animate-spin" />
+          <span className="text-sm">Loading patients...</span>
+        </div>
+      )}
+
+      {/* ── Search skeleton ── */}
+      {!loading && isSearching && (
         <div className="overflow-hidden rounded-lg border border-border bg-card shadow-sm">
           <table className="w-full border-collapse text-left">
             <thead>
@@ -247,7 +248,7 @@ export function PatientSearchPage() {
       )}
 
       {/* ── No results ── */}
-      {!isSearching && debouncedQuery && filtered.length === 0 && (
+      {!loading && !isSearching && debouncedQuery && patients.length === 0 && (
         <div className="flex min-h-48 flex-col items-center justify-center gap-3 rounded-lg border border-border bg-card">
           <UserX size={48} className="text-muted-foreground/30" />
           <p className="text-sm text-muted-foreground">No patients found matching your search.</p>
@@ -257,8 +258,8 @@ export function PatientSearchPage() {
         </div>
       )}
 
-      {/* ── Patient table — shown always (all patients) or filtered ── */}
-      {!isSearching && filtered.length > 0 && (
+      {/* ── Patient table ── */}
+      {!loading && !isSearching && patients.length > 0 && (
         <div className="overflow-hidden rounded-lg border border-border bg-card shadow-sm">
           <div className="overflow-x-auto">
             <table className="w-full border-collapse text-left">

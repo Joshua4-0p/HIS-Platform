@@ -1,7 +1,8 @@
-import { useState } from "react"
+﻿import { useState, useEffect } from "react"
 import { Link } from "react-router-dom"
-import { Building2, CheckCircle, Clock, XCircle } from "lucide-react"
+import { Building2, CheckCircle, Clock, Loader2, XCircle } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { API_BASE } from "@/lib/api"
 
 // ── Types ─────────────────────────────────────────────────────
 
@@ -16,19 +17,6 @@ interface Registration {
   submittedDate: string
   status: RegStatus
 }
-
-// ── Mock data ─────────────────────────────────────────────────
-
-const ALL_REGISTRATIONS: Registration[] = [
-  { id: "1", name: "Garoua Regional Hospital", region: "North", facilityType: "Public", adminEmail: "admin@garoua-reg.cm", submittedDate: "2026-06-25", status: "Pending" },
-  { id: "2", name: "Bafoussam General", region: "West", facilityType: "Public", adminEmail: "contact@bafoussam.cm", submittedDate: "2026-06-24", status: "Approved" },
-  { id: "3", name: "Maroua Mission Hospital", region: "Far North", facilityType: "Mission", adminEmail: "director@maroua-miss.cm", submittedDate: "2026-06-20", status: "Rejected" },
-  { id: "4", name: "Buea Regional Hospital", region: "South West", facilityType: "Public", adminEmail: "info@buea-reg.cm", submittedDate: "2026-06-26", status: "Pending" },
-  { id: "5", name: "Yaoundé Central Hospital", region: "Centre", facilityType: "Public", adminEmail: "admin@yaounde-cen.cm", submittedDate: "2026-06-15", status: "Approved" },
-  { id: "6", name: "Douala Laquintinie", region: "Littoral", facilityType: "Public", adminEmail: "contact@laquintinie.cm", submittedDate: "2026-06-27", status: "Pending" },
-  { id: "7", name: "Bamenda Regional Hospital", region: "North West", facilityType: "Public", adminEmail: "admin@bamenda-hosp.cm", submittedDate: "2026-06-15", status: "Pending" },
-  { id: "8", name: "St Luke Catholic Hospital", region: "Centre", facilityType: "Mission", adminEmail: "admin@stluke.cm", submittedDate: "2026-06-14", status: "Approved" },
-]
 
 const TABS = ["All", "Pending", "Approved", "Rejected"] as const
 type TabValue = typeof TABS[number]
@@ -64,10 +52,23 @@ function StatusBadge({ status }: { status: RegStatus }) {
 
 export function RegistrationsListPage() {
   const [activeTab, setActiveTab] = useState<TabValue>("All")
+  const [registrations, setRegistrations] = useState<Registration[]>([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    const token = localStorage.getItem("his_id_token")
+    fetch(`${API_BASE}/hospitals`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then((r) => r.json())
+      .then((data) => setRegistrations(data.hospitals ?? []))
+      .catch(() => {})
+      .finally(() => setLoading(false))
+  }, [])
 
   const filtered = activeTab === "All"
-    ? ALL_REGISTRATIONS
-    : ALL_REGISTRATIONS.filter((r) => r.status === activeTab)
+    ? registrations
+    : registrations.filter((r) => r.status === activeTab)
 
   return (
     <div className="space-y-6">
@@ -95,7 +96,7 @@ export function RegistrationsListPage() {
                   "ml-1.5 rounded-full px-1.5 py-0.5 text-xs",
                   activeTab === tab ? "bg-primary/15 text-primary" : "bg-muted text-muted-foreground"
                 )}>
-                  {ALL_REGISTRATIONS.filter((r) => r.status === tab).length}
+                  {registrations.filter((r) => r.status === tab).length}
                 </span>
               )}
             </button>
@@ -105,7 +106,12 @@ export function RegistrationsListPage() {
 
       {/* Table card */}
       <div className="overflow-hidden rounded-lg border border-border bg-card shadow-sm">
-        {filtered.length === 0 ? (
+        {loading ? (
+          <div className="flex items-center justify-center gap-2 py-20 text-muted-foreground">
+            <Loader2 size={20} className="animate-spin" />
+            <span className="text-sm">Loading registrations...</span>
+          </div>
+        ) : filtered.length === 0 ? (
           <div className="flex flex-col items-center justify-center gap-3 py-20 text-muted-foreground">
             <Building2 size={48} className="opacity-30" />
             <p className="text-sm">No registrations found.</p>

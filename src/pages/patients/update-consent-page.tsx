@@ -1,18 +1,12 @@
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Link, useNavigate, useParams } from "react-router-dom"
 import { CheckCircle, Clock, XCircle, Info, AlertTriangle, ChevronLeft } from "lucide-react"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
+import { API_BASE } from "@/lib/api"
 
 type ConsentChoice = "Granted" | "Refused" | "Pending"
-
-// ── Mock patient data ─────────────────────────────────────────────
-
-const MOCK_PATIENT_NAME = "Ayuk Emmanuel"
-
-const INITIAL_DATA_CONSENT: ConsentChoice = "Granted"
-const INITIAL_REPORTING_CONSENT: ConsentChoice = "Pending"
 
 // ── Current status pill ───────────────────────────────────────────
 
@@ -75,24 +69,52 @@ function ConsentRadioGroup({
 // ── Page ──────────────────────────────────────────────────────────
 
 export function UpdateConsentPage() {
-  const { id = "1" } = useParams<{ id: string }>()
+  const { id = "" } = useParams<{ id: string }>()
   const navigate = useNavigate()
 
-  const [dataConsent, setDataConsent] = useState<ConsentChoice>(INITIAL_DATA_CONSENT)
-  const [reportingConsent, setReportingConsent] = useState<ConsentChoice>(INITIAL_REPORTING_CONSENT)
-  const [saving, setSaving] = useState(false)
+  const [patientName, setPatientName]       = useState("Patient")
+  const [dataConsent, setDataConsent]       = useState<ConsentChoice>("Pending")
+  const [reportingConsent, setReportingConsent] = useState<ConsentChoice>("Pending")
+  const [saving, setSaving]                 = useState(false)
 
-  function handleSubmit(e: React.FormEvent) {
+  // Load current consent from patient profile
+  useEffect(() => {
+    if (!id) return
+    const token = localStorage.getItem("his_id_token")
+    fetch(`${API_BASE}/patients/${id}`, { headers: { Authorization: `Bearer ${token}` } })
+      .then((r) => r.json())
+      .then((data) => {
+        if (data.name)                  setPatientName(data.name)
+        if (data.consentPersonalData)   setDataConsent(data.consentPersonalData as ConsentChoice)
+        if (data.consentPublicReporting) setReportingConsent(data.consentPublicReporting as ConsentChoice)
+      })
+      .catch(() => {})
+  }, [id])
+
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setSaving(true)
-    // Simulate async save
-    setTimeout(() => {
-      setSaving(false)
+    const token = localStorage.getItem("his_id_token")
+    try {
+      const res = await fetch(`${API_BASE}/patients/${id}/consent`, {
+        method:  "PUT",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body:    JSON.stringify({ consentPersonalData: dataConsent, consentReporting: reportingConsent }),
+      })
+      const json = await res.json()
+      if (!res.ok) {
+        toast.error("Update failed", { description: json.error ?? "Please try again." })
+        return
+      }
       toast.success("Consent Updated", {
-        description: `Consent for ${MOCK_PATIENT_NAME} has been saved and logged per Cameroon Data Protection Law No. 2010/012.`,
+        description: `Consent for ${patientName} has been saved and logged per Cameroon Data Protection Law No. 2010/012.`,
       })
       navigate(`/patients/${id}`)
-    }, 600)
+    } catch {
+      toast.error("Network error", { description: "Check your connection and try again." })
+    } finally {
+      setSaving(false)
+    }
   }
 
   return (
@@ -108,7 +130,7 @@ export function UpdateConsentPage() {
       {/* ── Page title ── */}
       <div>
         <h1 className="text-2xl font-semibold text-foreground">
-          Update Consent — {MOCK_PATIENT_NAME}
+          Update Consent — {patientName}
         </h1>
         <p className="mt-1 text-sm text-muted-foreground">Manage patient data privacy settings.</p>
       </div>
@@ -121,8 +143,8 @@ export function UpdateConsentPage() {
           <section className="mb-6">
             <h2 className="mb-3 text-base font-semibold text-foreground">Current Status</h2>
             <div className="flex flex-wrap gap-3">
-              <StatusPill consent={INITIAL_DATA_CONSENT}      label="Data Storage" />
-              <StatusPill consent={INITIAL_REPORTING_CONSENT} label="Public Health" />
+              <StatusPill consent={dataConsent}      label="Data Storage" />
+              <StatusPill consent={reportingConsent} label="Public Health" />
             </div>
           </section>
 

@@ -8,6 +8,8 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { AuthLayout, HISLogo } from "@/components/auth/auth-layout"
+import { useNavigate } from "react-router-dom"
+import { API_BASE } from "@/lib/api"
 
 const schema = z.object({
   email: z
@@ -19,8 +21,10 @@ const schema = z.object({
 type FormValues = z.infer<typeof schema>
 
 export function ForgotPasswordPage() {
+  const navigate = useNavigate()
   const [isLoading, setIsLoading] = useState(false)
   const [sentTo, setSentTo] = useState<string | null>(null)
+  const [apiError, setApiError] = useState<string | null>(null)
 
   const {
     register,
@@ -30,9 +34,26 @@ export function ForgotPasswordPage() {
 
   async function onSubmit(data: FormValues) {
     setIsLoading(true)
-    await new Promise((r) => setTimeout(r, 1200))
-    setIsLoading(false)
-    setSentTo(data.email)
+    setApiError(null)
+    try {
+      const res = await fetch(`${API_BASE}/auth/forgot-password`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: data.email }),
+      })
+      if (!res.ok) {
+        const json = await res.json()
+        setApiError(json.error ?? "Failed to send reset code. Please try again.")
+        return
+      }
+      setSentTo(data.email)
+      // After a short delay navigate to reset-password with email pre-filled
+      setTimeout(() => navigate(`/reset-password?email=${encodeURIComponent(data.email)}`), 2000)
+    } catch {
+      setApiError("Network error. Please check your connection and try again.")
+    } finally {
+      setIsLoading(false)
+    }
   }
 
   return (
@@ -80,8 +101,15 @@ export function ForgotPasswordPage() {
             <>
               <h1 className="text-2xl font-semibold text-foreground">Reset your password</h1>
               <p className="mt-1 mb-6 text-sm text-muted-foreground">
-                Enter your email and we will send you a reset link.
+                Enter your email and we will send you a reset code.
               </p>
+
+              {apiError && (
+                <div className="mb-4 flex items-start gap-2 rounded-md border border-destructive bg-destructive/10 p-3 text-sm text-destructive">
+                  <AlertCircle className="mt-0.5 size-4 shrink-0" />
+                  {apiError}
+                </div>
+              )}
 
               <form onSubmit={handleSubmit(onSubmit)} noValidate className="space-y-4">
                 <div className="space-y-1.5">
