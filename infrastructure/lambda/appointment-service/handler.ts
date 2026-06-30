@@ -105,7 +105,7 @@ export const handler = async (event: APIGatewayProxyEventV2) => {
 
     // ── GET /appointments ─────────────────────────────────────────────────────
     if (method === 'GET' && segments.length === 1) {
-      await requirePermission(pool, userId, hospitalId, 'appointment:write');
+      await requirePermission(pool, userId, hospitalId, 'appointment:read');
 
       const qs = event.queryStringParameters ?? {};
       const conditions: string[] = ['a.hospital_id = $1'];
@@ -149,7 +149,7 @@ export const handler = async (event: APIGatewayProxyEventV2) => {
 
     // ── POST /appointments ────────────────────────────────────────────────────
     if (method === 'POST' && segments.length === 1) {
-      await requirePermission(pool, userId, hospitalId, 'appointment:write');
+      await requirePermission(pool, userId, hospitalId, 'appointment:create');
 
       const { patientId, date, time, type, clinicianId, clinicalUnit } = body;
 
@@ -249,7 +249,7 @@ export const handler = async (event: APIGatewayProxyEventV2) => {
       const apptId = segments[1];
       if (!isUuid(apptId)) return badRequest('Invalid appointment ID.');
 
-      await requirePermission(pool, userId, hospitalId, 'appointment:write');
+      await requirePermission(pool, userId, hospitalId, 'appointment:read');
 
       const res = await pool.query(
         `${APPT_SELECT} WHERE a.id = $1 AND a.hospital_id = $2`,
@@ -261,12 +261,116 @@ export const handler = async (event: APIGatewayProxyEventV2) => {
       return ok({ appointment: rowToAppt(res.rows[0]) });
     }
 
+    // ── PUT /appointments/:id ─────────────────────────────────────────────────
+    if (method === 'PUT' && segments.length === 2) {
+      const apptId = segments[1];
+      if (!isUuid(apptId)) return badRequest('Invalid appointment ID.');
+
+      await requirePermission(pool, userId, hospitalId, 'appointment:update');
+
+      const { date, time, clinicianId, type, clinicalUnit } = body;
+      if (!date && !time && !clinicianId && !type && !clinicalUnit) {
+        return badRequest('At least one field to update is required: date, time, clinicianId, type, clinicalUnit.');
+      }
+
+      const existingRes = await pool.query(
+        `SELECT id, patient_id, clinician_id, date_time, type, clinical_unit, status
+         FROM appointments WHERE id = $1 AND hospital_id = $2`,
+        [apptId, hospitalId],
+      );
+      if (existingRes.rowCount === 0) return notFound();
+      const existing = existingRes.rows[0];
+      if (existing.status === 'cancelled') return badRequest('Cancelled appointments cannot be edited.');
+
+      const dbType = type
+        ? (type === 'followup' ? 'follow-up' : String(type).toLowerCase())
+        : (existing.type as string);
+      if (!['consultation', 'follow-up', 'laboratory', 'procedure'].includes(dbType)) {
+        return badRequest('type must be consultation, follow-up, laboratory, or procedure.');
+      }
+
+      const newClinicianId = clinicianId && isUuid(clinicianId) ? clinicianId : (existing.clinician_id as string);
+      const newUnit = clinicalUnit ?? existing.clinical_unit;
+
+      let newDateTime: Date;
+      if (date || time) {
+        const currentWat = extractWat(new Date(existing.date_time as string));
+        const useDate = date ?? currentWat.date;
+        const useHour = String(Math.floor((time ? parseInt(time.split(':')[0], 10) : Math.floor(currentWat.startMin / 60)))).padStart(2, '0');
+        const useMin  = String(time ? parseInt(time.split(':')[1] ?? '0', 10) : currentWat.startMin % 60).padStart(2, '0');
+        newDateTime = new Date(`${useDate}T${useHour}:${useMin}:00+01:00`);
+        if (isNaN(newDateTime.getTime())) return badRequest('Invalid date or time format.');
+      } else {
+        newDateTime = new Date(existing.date_time as string);
+      }
+
+      // REQ-F-030: re-check conflict excluding this appointment
+      const conflictRes = await pool.query(
+        `SELECT a.id FROM appointments a
+         WHERE a.hospital_id = $1 AND a.clinician_id = $2 AND a.date_time = $3
+           AND a.status = 'scheduled' AND a.id <> $4`,
+        [hospitalId, newClinicianId, newDateTime.toISOString(), apptId],
+      );
+      if (conflictRes.rowCount! > 0) {
+        return conflict({
+          error: 'Scheduling conflict: this clinician already has an appointment at that time.',
+          conflictingAppointment: { id: conflictRes.rows[0].id },
+        });
+      }
+
+      const updateRes = await pool.query(
+        `UPDATE appointments
+         SET date_time = $1, type = $2, clinician_id = $3, clinical_unit = $4
+         WHERE id = $5 AND hospital_id = $6
+         RETURNING id, patient_id, clinician_id, type, clinical_unit, date_time,
+                   status, cancellation_reason, created_at`,
+        [newDateTime.toISOString(), dbType, newClinicianId, newUnit, apptId, hospitalId],
+      );
+      const updated = updateRes.rows[0];
+
+      // Notify new clinician if clinician changed
+      if (clinicianId && clinicianId !== existing.clinician_id) {
+        await pool.query(
+          `INSERT INTO notifications (user_id, hospital_id, type, title, body)
+           VALUES ($1, $2, 'appointment_created', 'Appointment Rescheduled to You', $3)`,
+          [newClinicianId, hospitalId, `An appointment has been reassigned to you for ${date ?? ''}.`],
+        );
+      }
+
+      const namesRes = await pool.query(
+        `SELECT p.full_name AS patient_name, u.full_name AS clinician_name
+         FROM patients p, users u
+         WHERE p.id = $1 AND u.id = $2`,
+        [updated.patient_id as string, updated.clinician_id as string],
+      );
+      const names = namesRes.rows[0] ?? {};
+
+      await writeAuditLog(pool, {
+        userId,
+        hospitalId,
+        patientId:    updated.patient_id as string,
+        actionType:   'UPDATE',
+        resourceType: 'appointment',
+        resourceId:   apptId,
+        ipAddress:    ip,
+      });
+
+      logger.info('PUT /appointments/:id', userId, hospitalId, { appointmentId: apptId });
+      return ok({
+        appointment: rowToAppt({
+          ...updated,
+          patient_name:   names.patient_name ?? '',
+          clinician_name: names.clinician_name ?? '',
+        }),
+      });
+    }
+
     // ── PUT /appointments/:id/cancel ──────────────────────────────────────────
     if (method === 'PUT' && segments.length === 3 && segments[2] === 'cancel') {
       const apptId = segments[1];
       if (!isUuid(apptId)) return badRequest('Invalid appointment ID.');
 
-      await requirePermission(pool, userId, hospitalId, 'appointment:write');
+      await requirePermission(pool, userId, hospitalId, 'appointment:cancel');
 
       const cancellationReason = String(body.cancellationReason ?? '').trim();
       if (!cancellationReason) return badRequest('cancellationReason is required.');

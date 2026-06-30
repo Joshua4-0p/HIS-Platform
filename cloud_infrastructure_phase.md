@@ -387,11 +387,32 @@ CREATE TABLE role_assignment_history (
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
+-- V4b expands to 33 granular permissions (replaces original 13 coarse permissions)
 INSERT INTO permissions (name) VALUES
-  ('patient:read'),('patient:write'),('patient:amend'),
-  ('diagnosis:write'),('lab_result:read'),('lab_result:write'),
-  ('prescription:write'),('appointment:write'),('analytics:view'),
-  ('staff:manage'),('role:assign'),('transfer:request'),('transfer:approve');
+  -- Patient management
+  ('patient:create'),('patient:read'),('patient:update'),('patient:delete'),('patient:amend'),
+  -- Appointment management
+  ('appointment:create'),('appointment:read'),('appointment:update'),('appointment:cancel'),
+  -- Clinical encounters (create-only per REQ-F-025 — no delete/update)
+  ('encounter:create'),('encounter:read'),
+  -- Diagnoses (create-only per REQ-F-025)
+  ('diagnosis:create'),('diagnosis:read'),
+  -- Vital signs (create-only per REQ-F-025)
+  ('vitals:create'),('vitals:read'),
+  -- Prescriptions (create-only per REQ-F-025)
+  ('prescription:create'),('prescription:read'),
+  -- Lab results (update = versioned correction row, not overwrite per REQ-F-025)
+  ('lab_result:create'),('lab_result:read'),('lab_result:update'),
+  -- Bulk data ingestion
+  ('bulk_upload:create'),('bulk_upload:read'),
+  -- Patient transfers
+  ('transfer:request'),('transfer:approve'),
+  -- Analytics
+  ('analytics:view'),
+  -- Staff management
+  ('staff:create'),('staff:read'),('staff:update'),('staff:deactivate'),
+  -- Role management
+  ('role:create'),('role:update'),('role:delete'),('role:assign');
 
 INSERT INTO roles (id, name, is_default) VALUES
   (gen_random_uuid(), 'Hospital Admin', true),
@@ -1025,17 +1046,20 @@ retrieve_skill("aws-core:aws-cdk")
 | GET | /hospitals | Super Admin | No | All hospitals list |
 | GET | /settings/facility | None (hospital-scoped) | No | Get facility profile (REQ-F-007) |
 | PUT | /settings/facility | None (hospital-scoped) | No | Update facility |
-| GET | /staff | staff:manage | No | List staff (REQ-F-008) |
-| POST | /staff | staff:manage | Yes (CREATE) | Create staff + Cognito user |
-| GET | /staff/{id} | staff:manage | No | Get staff member |
-| PUT | /staff/{id} | staff:manage | No | Update staff |
+| GET | /staff | staff:read | No | List staff (REQ-F-008) |
+| POST | /staff | staff:create | Yes (CREATE) | Create staff + Cognito user |
+| GET | /staff/{id} | staff:read | No | Get staff member |
+| PUT | /staff/{id} | staff:update | No | Update staff |
 | PUT | /staff/{id}/role | role:assign | Yes (UPDATE) | Assign role + record history (REQ-F-014) |
-| POST | /staff/{id}/deactivate | staff:manage | Yes (UPDATE) | Deactivate + AdminDisableUser (REQ-F-013) |
+| POST | /staff/{id}/deactivate | staff:deactivate | Yes (UPDATE) | Deactivate + AdminDisableUser (REQ-F-013) |
+| POST | /staff/{id}/activate | staff:deactivate | Yes (UPDATE) | Re-activate staff + AdminEnableUser |
 | GET | /roles | None (hospital-scoped) | No | List roles (defaults + custom) |
-| POST | /roles | staff:manage | No | Create custom role (REQ-F-011) |
-| PUT | /roles/{id} | staff:manage | No | Update custom role permissions |
-| DELETE | /roles/{id} | staff:manage | No | Delete custom role (only if no users) |
-| GET | /roles/history | staff:manage | No | Role assignment change history (REQ-F-014) |
+| POST | /roles | role:create | No | Create custom role (REQ-F-011) |
+| PUT | /roles/{id} | role:update | No | Update custom role permissions |
+| DELETE | /roles/{id} | role:delete | No | Delete custom role (only if no users) |
+| GET | /roles/history | staff:read | No | Role assignment change history (REQ-F-014) |
+| PUT | /settings/facility | staff:update | No | Update facility name, address, contact details |
+| GET | /users/me/permissions | None (user-scoped) | No | Returns the calling user's permission list from DB |
 
 **Key implementation notes:**
 - `POST /hospitals/{id}/approve`: creates Hospital Admin Cognito user, calls
@@ -1099,11 +1123,12 @@ RDS tables: patients, record_amendments, notifications, application_audit_log.
 
 | Method | Route | Permission | Audit | Description |
 |---|---|---|---|---|
-| GET | /patients | patient:read | Yes (READ) | Fuzzy search — pg_trgm, GIN index (REQ-F-022) |
-| POST | /patients | patient:write | Yes (CREATE) | Register with dedup check (REQ-F-019/020) |
+| GET | /patients | patient:read | Yes (READ) | Fuzzy search — active patients only (is_active=true), pg_trgm, GIN index (REQ-F-022) |
+| POST | /patients | patient:create | Yes (CREATE) | Register with dedup check (REQ-F-019/020) |
 | GET | /patients/{id} | patient:read | Yes (READ) | Full patient profile (REQ-F-023) |
-| PUT | /patients/{id} | patient:write | Yes (UPDATE) | Update optional attributes (REQ-F-024) |
-| PUT | /patients/{id}/consent | patient:write | Yes (CONSENT_CHANGE) | Update consent (REQ-F-015/017) |
+| PUT | /patients/{id} | patient:update | Yes (UPDATE) | Update demographic and contact details (REQ-F-024) |
+| PUT | /patients/{id}/consent | patient:update | Yes (CONSENT_CHANGE) | Update consent (REQ-F-015/017) |
+| POST | /patients/{id}/deactivate | patient:delete | Yes (DELETE) | Soft-deactivate: is_active=false, deactivated_at, deactivated_by. Record retained. |
 | POST | /patients/{id}/amend/{recordType}/{recordId} | patient:amend | Yes (AMEND) | Versioned amendment (REQ-F-025/026) |
 
 **Key implementation details:**
@@ -1161,10 +1186,11 @@ application_audit_log.
 
 | Method | Route | Permission | Audit | Description |
 |---|---|---|---|---|
-| GET | /appointments | appointment:write | No | List by date/clinician/unit (REQ-F-031) |
-| POST | /appointments | appointment:write | Yes (CREATE) | Create with conflict check (REQ-F-029/030) |
-| GET | /appointments/{id} | appointment:write | No | Single appointment detail |
-| PUT | /appointments/{id}/cancel | appointment:write | Yes (UPDATE) | Cancel with reason (REQ-F-032) |
+| GET | /appointments | appointment:read | No | List by date/clinician/unit (REQ-F-031) |
+| POST | /appointments | appointment:create | Yes (CREATE) | Create with conflict check (REQ-F-029/030) |
+| GET | /appointments/{id} | appointment:read | No | Single appointment detail |
+| PUT | /appointments/{id} | appointment:update | Yes (UPDATE) | Reschedule date/time/clinician/type/unit; re-runs conflict check |
+| PUT | /appointments/{id}/cancel | appointment:cancel | Yes (UPDATE) | Cancel with reason (REQ-F-032) |
 
 **Key implementation notes:**
 - Conflict check on `POST /appointments`: `SELECT id FROM appointments WHERE hospital_id=$1 AND clinician_id=$2 AND date_time=$3 AND status='scheduled'`. HTTP 409 if conflict found — frontend shows amber double-booking warning (Page 7.3).
@@ -1213,13 +1239,13 @@ lab_test_requests, patients, record_amendments, notifications, application_audit
 
 | Method | Route | Permission | Audit | Description |
 |---|---|---|---|---|
-| POST | /patients/{id}/encounters | diagnosis:write | Yes (CREATE) | Create encounter — consent guard (REQ-F-034) |
-| GET | /patients/{id}/encounters | patient:read | Yes (READ) | List encounters for patient |
-| GET | /patients/{id}/encounters/{eid} | patient:read | Yes (READ) | Single encounter + all sub-records |
-| POST | /patients/{id}/encounters/{eid}/diagnoses | diagnosis:write | Yes (CREATE) | Add diagnosis (REQ-F-035) |
-| POST | /patients/{id}/encounters/{eid}/vitals | diagnosis:write | Yes (CREATE) | Record vital signs (REQ-F-036) |
-| POST | /patients/{id}/encounters/{eid}/prescriptions | prescription:write | Yes (CREATE) | Add prescription (REQ-F-037) |
-| POST | /patients/{id}/encounters/{eid}/lab-requests | diagnosis:write | Yes (CREATE) | Request lab test (REQ-F-038) |
+| POST | /patients/{id}/encounters | encounter:create | Yes (CREATE) | Create encounter — consent guard (REQ-F-034) |
+| GET | /patients/{id}/encounters | encounter:read | Yes (READ) | List encounters for patient |
+| GET | /patients/{id}/encounters/{eid} | encounter:read | Yes (READ) | Single encounter + all sub-records |
+| POST | /patients/{id}/encounters/{eid}/diagnoses | diagnosis:create | Yes (CREATE) | Add diagnosis (REQ-F-035) |
+| POST | /patients/{id}/encounters/{eid}/vitals | vitals:create | Yes (CREATE) | Record vital signs (REQ-F-036) |
+| POST | /patients/{id}/encounters/{eid}/prescriptions | prescription:create | Yes (CREATE) | Add prescription (REQ-F-037) |
+| POST | /patients/{id}/encounters/{eid}/lab-requests | lab_result:create | Yes (CREATE) | Request lab test (REQ-F-038) |
 
 **Key implementation notes:**
 - Consent guard: Before any POST, check `patients.consent_personal_data`. If `'Refused'`, return HTTP 403 `{ code: 'CONSENT_REFUSED' }`. Frontend shows red banner (Page 8.1 design). Non-negotiable per REQ-F-016.
@@ -1273,9 +1299,10 @@ with normal and critical range values.
 
 | Method | Route | Permission | Audit | Description |
 |---|---|---|---|---|
-| GET | /laboratory/queue | lab_result:write | No | Work queue — pending requests (REQ-F-043) |
-| POST | /laboratory/results | lab_result:write | Yes (CREATE) | Enter result + validate range + alert (REQ-F-039/040/041) |
-| GET | /laboratory/results/{id} | lab_result:read | Yes (READ) | Result detail view (REQ-F-042) |
+| GET | /lab/results | lab_result:read | No | Work queue — pending/in-progress requests (REQ-F-043) |
+| POST | /lab/results | lab_result:create | Yes (CREATE) | Enter result + mark request completed (REQ-F-039/040/041) |
+| GET | /lab/results/{id} | lab_result:read | Yes (READ) | Result detail with correction chain (REQ-F-042) |
+| PUT | /lab/results/{id}/correct | lab_result:update | Yes (UPDATE) | Versioned correction: inserts new row, marks original superseded=true (REQ-F-025) |
 
 **Critical alert flow — POST /laboratory/results (REQ-F-041):**
 1. Save result to `lab_results`
@@ -1527,7 +1554,7 @@ retrieve_skill("aws-core:aws-messaging-and-streaming")
 | GET | /notifications | None (user-scoped) | No | Unread notifications for JWT user (REQ-F-064/065) |
 | PUT | /notifications/{id}/read | None (user-scoped) | No | Mark single notification as read |
 | PUT | /notifications/read-all | None (user-scoped) | No | Mark all as read |
-| GET | /audit | staff:manage | No | Clinical audit log with filters (REQ-F-069) |
+| GET | /audit | staff:read | No | Clinical audit log with filters (REQ-F-069) |
 
 **GET /notifications** (REQ-F-065): Returns unread notifications for the JWT user_id.
 Frontend polls every 15 seconds. UPDATE `is_delivered=true` after fetch.

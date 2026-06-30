@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react"
-import { Link } from "react-router-dom"
+import { Link, useNavigate } from "react-router-dom"
 import {
   Search,
   UserPlus,
@@ -14,12 +14,16 @@ import {
   AlertTriangle,
   CalendarDays,
   Loader2,
+  Pencil,
+  UserMinus,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Skeleton } from "@/components/ui/skeleton"
 import { cn } from "@/lib/utils"
 import { API_BASE } from "@/lib/api"
+import { usePermissions } from "@/hooks/use-permissions"
+import { toast } from "sonner"
 
 // ── Types ─────────────────────────────────────────────────────────
 
@@ -112,6 +116,8 @@ function ConsentBadge({ status }: { status: ConsentStatus }) {
 // ── Page ──────────────────────────────────────────────────────────
 
 export function PatientSearchPage() {
+  const navigate = useNavigate()
+  const { hasPermission } = usePermissions()
   const [query, setQuery]                   = useState("")
   const [debouncedQuery, setDebouncedQuery] = useState("")
   const [isSearching, setIsSearching]       = useState(false)
@@ -119,6 +125,8 @@ export function PatientSearchPage() {
   const [patients, setPatients]             = useState<Patient[]>([])
   const [stats, setStats]                   = useState<Stats>({ total: 0, granted: 0, pendingOrRefused: 0, thisMonth: 0 })
   const [loading, setLoading]               = useState(true)
+  const [deactivateTarget, setDeactivateTarget] = useState<Patient | null>(null)
+  const [deactivating, setDeactivating]     = useState(false)
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   async function fetchPatients(q?: string) {
@@ -157,6 +165,31 @@ export function PatientSearchPage() {
     }, 300)
     return () => { if (timerRef.current) clearTimeout(timerRef.current) }
   }, [query])
+
+  async function handleDeactivate(patient: Patient) {
+    setDeactivating(true)
+    const token = localStorage.getItem("his_id_token")
+    try {
+      const res = await fetch(`${API_BASE}/patients/${patient.id}/deactivate`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ reason: "Deactivated via patient list" }),
+      })
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({})) as { message?: string }
+        toast.error(err.message ?? "Failed to deactivate patient.")
+        return
+      }
+      toast.success(`${patient.name} has been deactivated.`)
+      setDeactivateTarget(null)
+      setPatients((prev) => prev.filter((p) => p.id !== patient.id))
+      setStats((s) => ({ ...s, total: Math.max(0, s.total - 1) }))
+    } catch {
+      toast.error("Network error. Please try again.")
+    } finally {
+      setDeactivating(false)
+    }
+  }
 
   const totalResults = patients.length
   const totalPages = Math.max(1, Math.ceil(totalResults / PAGE_SIZE))
@@ -247,6 +280,35 @@ export function PatientSearchPage() {
         </div>
       )}
 
+      {/* ── Deactivate confirmation dialog ── */}
+      {deactivateTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4">
+          <div className="w-full max-w-md rounded-xl border border-border bg-card p-6 shadow-xl">
+            <h2 className="text-base font-semibold text-foreground">Deactivate Patient Record</h2>
+            <p className="mt-2 text-sm text-muted-foreground">
+              Are you sure you want to deactivate <span className="font-medium text-foreground">{deactivateTarget.name}</span>?
+              This patient will no longer appear in search results. The record is retained for audit purposes.
+            </p>
+            <p className="mt-3 rounded-md bg-destructive/10 px-3 py-2 text-xs font-medium text-destructive">
+              Patient ID: {deactivateTarget.patientId}
+            </p>
+            <div className="mt-5 flex justify-end gap-3">
+              <Button variant="outline" onClick={() => setDeactivateTarget(null)} disabled={deactivating}>
+                Cancel
+              </Button>
+              <Button
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                onClick={() => handleDeactivate(deactivateTarget)}
+                disabled={deactivating}
+              >
+                {deactivating ? <Loader2 size={14} className="animate-spin" /> : <UserMinus size={14} />}
+                {deactivating ? "Deactivating..." : "Confirm Deactivate"}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* ── No results ── */}
       {!loading && !isSearching && debouncedQuery && patients.length === 0 && (
         <div className="flex min-h-48 flex-col items-center justify-center gap-3 rounded-lg border border-border bg-card">
@@ -286,11 +348,32 @@ export function PatientSearchPage() {
                     <td className="px-4 py-3 text-sm text-muted-foreground">{patient.registered}</td>
                     <td className="px-4 py-3"><ConsentBadge status={patient.consentStatus} /></td>
                     <td className="px-4 py-3 text-right">
-                      <Link to={`/patients/${patient.id}`}>
-                        <Button variant="outline" size="sm" className="border-primary text-primary hover:bg-primary hover:text-primary-foreground">
-                          View Profile
-                        </Button>
-                      </Link>
+                      <div className="flex items-center justify-end gap-2">
+                        <Link to={`/patients/${patient.id}`}>
+                          <Button variant="outline" size="sm" className="border-primary text-primary hover:bg-primary hover:text-primary-foreground">
+                            View
+                          </Button>
+                        </Link>
+                        {hasPermission("patient:update") && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => navigate(`/patients/${patient.id}/edit`)}
+                          >
+                            <Pencil size={14} />
+                          </Button>
+                        )}
+                        {hasPermission("patient:delete") && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="border-destructive text-destructive hover:bg-destructive hover:text-destructive-foreground"
+                            onClick={() => setDeactivateTarget(patient)}
+                          >
+                            <UserMinus size={14} />
+                          </Button>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 ))}

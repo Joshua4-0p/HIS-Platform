@@ -148,6 +148,72 @@ const MIGRATIONS: Migration[] = [
     `,
   },
   {
+    version: 'V4b',
+    name: 'V4b__expand_permissions.sql',
+    sql: `
+      DELETE FROM role_permissions;
+      DELETE FROM permissions;
+      INSERT INTO permissions (name) VALUES
+        ('patient:create'),('patient:read'),('patient:update'),('patient:delete'),('patient:amend'),
+        ('appointment:create'),('appointment:read'),('appointment:update'),('appointment:cancel'),
+        ('encounter:create'),('encounter:read'),
+        ('diagnosis:create'),('diagnosis:read'),
+        ('vitals:create'),('vitals:read'),
+        ('prescription:create'),('prescription:read'),
+        ('lab_result:create'),('lab_result:read'),('lab_result:update'),
+        ('bulk_upload:create'),('bulk_upload:read'),
+        ('transfer:request'),('transfer:approve'),
+        ('analytics:view'),
+        ('staff:create'),('staff:read'),('staff:update'),('staff:deactivate'),
+        ('role:create'),('role:update'),('role:delete'),('role:assign');
+      INSERT INTO role_permissions (role_id, permission_id)
+        SELECT r.id, p.id FROM roles r CROSS JOIN permissions p
+        WHERE r.name = 'Hospital Admin' AND r.hospital_id IS NULL ON CONFLICT DO NOTHING;
+      INSERT INTO role_permissions (role_id, permission_id)
+        SELECT r.id, p.id FROM roles r
+        JOIN permissions p ON p.name = ANY(ARRAY[
+          'patient:read','patient:amend',
+          'encounter:create','encounter:read',
+          'diagnosis:create','diagnosis:read',
+          'vitals:create','vitals:read',
+          'prescription:create','prescription:read',
+          'lab_result:read',
+          'appointment:create','appointment:read','appointment:update','appointment:cancel',
+          'transfer:request','analytics:view'
+        ])
+        WHERE r.name = 'Doctor' AND r.hospital_id IS NULL ON CONFLICT DO NOTHING;
+      INSERT INTO role_permissions (role_id, permission_id)
+        SELECT r.id, p.id FROM roles r
+        JOIN permissions p ON p.name = ANY(ARRAY[
+          'patient:read','encounter:read',
+          'vitals:create','vitals:read','diagnosis:read','prescription:read',
+          'appointment:create','appointment:read','appointment:update','appointment:cancel'
+        ])
+        WHERE r.name = 'Nurse' AND r.hospital_id IS NULL ON CONFLICT DO NOTHING;
+      INSERT INTO role_permissions (role_id, permission_id)
+        SELECT r.id, p.id FROM roles r
+        JOIN permissions p ON p.name = ANY(ARRAY[
+          'patient:read','encounter:read',
+          'lab_result:create','lab_result:read','lab_result:update'
+        ])
+        WHERE r.name = 'Laboratory Technician' AND r.hospital_id IS NULL ON CONFLICT DO NOTHING;
+      INSERT INTO role_permissions (role_id, permission_id)
+        SELECT r.id, p.id FROM roles r
+        JOIN permissions p ON p.name = ANY(ARRAY[
+          'patient:create','patient:read','patient:update',
+          'appointment:create','appointment:read','appointment:update','appointment:cancel'
+        ])
+        WHERE r.name = 'Receptionist' AND r.hospital_id IS NULL ON CONFLICT DO NOTHING;
+      INSERT INTO role_permissions (role_id, permission_id)
+        SELECT r.id, p.id FROM roles r
+        JOIN permissions p ON p.name = ANY(ARRAY[
+          'patient:create','patient:read','patient:update',
+          'bulk_upload:create','bulk_upload:read'
+        ])
+        WHERE r.name = 'Data Clerk' AND r.hospital_id IS NULL ON CONFLICT DO NOTHING;
+    `,
+  },
+  {
     version: 'V5',
     name: 'V5__create_patients_table.sql',
     sql: `
@@ -181,6 +247,22 @@ const MIGRATIONS: Migration[] = [
       CREATE INDEX patients_hospital_id_idx ON patients (hospital_id);
       CREATE INDEX patients_telephone_idx   ON patients (telephone);
       CREATE INDEX patients_dob_idx         ON patients (date_of_birth);
+    `,
+  },
+  {
+    version: 'V5b',
+    name: 'V5b__add_patient_soft_delete.sql',
+    sql: `
+      ALTER TABLE patients
+        ADD COLUMN IF NOT EXISTS is_active      BOOLEAN     NOT NULL DEFAULT true,
+        ADD COLUMN IF NOT EXISTS deactivated_at TIMESTAMPTZ,
+        ADD COLUMN IF NOT EXISTS deactivated_by UUID;
+      CREATE INDEX IF NOT EXISTS patients_is_active_idx ON patients (hospital_id, is_active);
+      ALTER TABLE lab_results
+        ADD COLUMN IF NOT EXISTS original_result_id UUID REFERENCES lab_results(id),
+        ADD COLUMN IF NOT EXISTS superseded         BOOLEAN NOT NULL DEFAULT false;
+      CREATE INDEX IF NOT EXISTS lab_results_original_idx   ON lab_results (original_result_id) WHERE original_result_id IS NOT NULL;
+      CREATE INDEX IF NOT EXISTS lab_results_superseded_idx ON lab_results (hospital_id, superseded);
     `,
   },
   {
@@ -718,7 +800,7 @@ export const handler = async (
       Data: {
         NewlyApplied: String(newlyApplied),
         TotalMigrations: String(MIGRATIONS.length),
-        SchemaVersion: 'V16',
+        SchemaVersion: 'V17',
       },
     };
   } finally {

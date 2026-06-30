@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { Link, useParams } from "react-router-dom"
 import {
   CartesianGrid,
@@ -33,6 +33,7 @@ import {
 } from "lucide-react"
 import { toast } from "sonner"
 import { cn } from "@/lib/utils"
+import { API_BASE } from "@/lib/api"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
@@ -49,6 +50,42 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip"
+
+// ── Helpers ───────────────────────────────────────────────────
+
+function authHeader() {
+  return { Authorization: `Bearer ${localStorage.getItem("his_id_token")}` }
+}
+
+function capitalize(s: string): string {
+  return s ? s.charAt(0).toUpperCase() + s.slice(1) : ""
+}
+
+function getJwtSub(): string {
+  try {
+    const token = localStorage.getItem("his_id_token") ?? ""
+    const payload = JSON.parse(atob(token.split(".")[1]))
+    return (payload.sub as string) ?? ""
+  } catch { return "" }
+}
+
+function fmtDate(iso: string): string {
+  try {
+    return new Date(iso).toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" })
+  } catch { return iso }
+}
+
+function fmtTime(iso: string): string {
+  try {
+    return new Date(iso).toTimeString().slice(0, 5)
+  } catch { return "" }
+}
+
+function initials(name: string): string {
+  const parts = name.trim().split(/\s+/)
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase()
+  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase()
+}
 
 // ── Types ─────────────────────────────────────────────────────
 
@@ -111,49 +148,6 @@ const DST_STYLES = {
   Resolved:  "bg-[#10B981]/10 text-[#10B981]",
   Suspected: "bg-[#F59E0B]/10 text-[#78350F]",
 } satisfies Record<DiagStatus, string>
-
-// ── Mock data ─────────────────────────────────────────────────
-
-const MOCK_ENCOUNTER = {
-  id:                 "ENC-20260618",
-  date:               "June 18, 2026",
-  time:               "09:30",
-  unit:               "Internal Medicine",
-  complaint:          "Persistent headache and fatigue over the past two weeks, with associated nausea and mild fever.",
-  clinician:          "Dr. Ekane Paul",
-  clinicianInitials:  "EP",
-  status:             "In Progress",
-  isOwnEncounter:     true,
-}
-
-const MOCK_IS_HOSPITAL_ADMIN = false
-
-const INIT_DIAGNOSES: Diagnosis[] = [
-  { id: "d1", condition: "Malaria",          icd10: "B54",   severity: "Moderate", status: "Active",   clinician: "Dr. Ekane Paul", date: "2026-06-18" },
-  { id: "d2", condition: "Anaemia",           icd10: "D64.9", severity: "Mild",     status: "Active",   clinician: "Dr. Ekane Paul", date: "2026-06-18" },
-  { id: "d3", condition: "Acute Bronchitis",  icd10: "J20.9", severity: "Mild",     status: "Resolved", clinician: "Dr. Mbi Alice",  date: "2026-03-12" },
-]
-
-const MOCK_VITALS: VitalSigns = {
-  temperature:     38.4,
-  bpSys:           118,
-  bpDia:           76,
-  pulse:           88,
-  respiratoryRate: 18,
-  spo2:            97,
-  weight:          72.5,
-  recordedAt:      "09:45",
-}
-
-const INIT_PRESCRIPTIONS: Prescription[] = [
-  { id: "p1", medication: "Artemether-Lumefantrine", dosage: "80/480mg", frequency: "Twice daily",       route: "Oral", duration: "3 days", prescriber: "Dr. Ekane Paul", date: "2026-06-18" },
-  { id: "p2", medication: "Paracetamol",             dosage: "500mg",    frequency: "Three times daily", route: "Oral", duration: "5 days", prescriber: "Dr. Ekane Paul", date: "2026-06-18" },
-]
-
-const INIT_LAB_REQUESTS: LabRequest[] = [
-  { id: "l1", test: "Malaria RDT",     requested: "09:35", urgency: "Urgent",  status: "Completed", result: "Positive (P. falciparum)" },
-  { id: "l2", test: "Full Blood Count", requested: "09:35", urgency: "Routine", status: "Pending",   result: null },
-]
 
 // ── Vital trends data ─────────────────────────────────────────
 
@@ -282,16 +276,21 @@ function AddDiagnosisDialog({
   open,
   onClose,
   onAdd,
+  patientId,
+  encounterId,
 }: {
   open: boolean
   onClose: () => void
   onAdd: (d: Diagnosis) => void
+  patientId: string
+  encounterId: string
 }) {
   const [condition, setCondition] = useState("")
   const [icd10,     setIcd10]     = useState("")
   const [severity,  setSeverity]  = useState<DiagSeverity>("Mild")
   const [status,    setStatus]    = useState<DiagStatus>("Active")
   const [submitted, setSubmitted] = useState(false)
+  const [saving,    setSaving]    = useState(false)
 
   const condErr = submitted && !condition.trim()
 
@@ -300,23 +299,43 @@ function AddDiagnosisDialog({
   }
   function handleClose() { reset(); onClose() }
 
-  function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setSubmitted(true)
     if (!condition.trim()) return
-    onAdd({
-      id:        `d-${Date.now()}`,
-      condition,
-      icd10,
-      severity,
-      status,
-      clinician: "Dr. Ekane Paul",
-      date:      new Date().toISOString().split("T")[0],
-    })
-    toast.success("Diagnosis Added", {
-      description: "The diagnosis has been recorded on this encounter.",
-    })
-    handleClose()
+    setSaving(true)
+    try {
+      const res = await fetch(
+        `${API_BASE}/patients/${patientId}/encounters/${encounterId}/diagnoses`,
+        {
+          method:  "POST",
+          headers: { "Content-Type": "application/json", ...authHeader() },
+          body:    JSON.stringify({
+            conditionName: condition,
+            icd10Code:     icd10 || undefined,
+            severity:      severity.toLowerCase(),
+            status:        status.toLowerCase(),
+          }),
+        },
+      )
+      if (!res.ok) throw new Error("Failed")
+      const data = await res.json()
+      onAdd({
+        id:        data.id,
+        condition: data.conditionName,
+        icd10:     data.icd10Code ?? "",
+        severity:  capitalize(data.severity) as DiagSeverity,
+        status:    capitalize(data.status) as DiagStatus,
+        clinician: "—",
+        date:      data.createdAt.slice(0, 10),
+      })
+      toast.success("Diagnosis Added", { description: "The diagnosis has been recorded on this encounter." })
+      handleClose()
+    } catch {
+      toast.error("Failed to save", { description: "Please try again." })
+    } finally {
+      setSaving(false)
+    }
   }
 
   return (
@@ -398,14 +417,15 @@ function AddDiagnosisDialog({
             </div>
 
             <DialogFooter className="border-t border-border bg-muted/20 px-6 py-4">
-              <Button type="button" variant="outline" onClick={handleClose}>
+              <Button type="button" variant="outline" onClick={handleClose} disabled={saving}>
                 Cancel
               </Button>
               <Button
                 type="submit"
+                disabled={saving}
                 className="bg-primary text-primary-foreground hover:bg-primary/90"
               >
-                Add Diagnosis
+                {saving ? "Saving..." : "Add Diagnosis"}
               </Button>
             </DialogFooter>
           </form>
@@ -421,40 +441,69 @@ function RecordVitalsDialog({
   open,
   onClose,
   onSaved,
+  patientId,
+  encounterId,
 }: {
   open: boolean
   onClose: () => void
   onSaved: (v: VitalSigns) => void
+  patientId: string
+  encounterId: string
 }) {
-  const [temp,  setTemp]  = useState("")
-  const [bpSys, setBpSys] = useState("")
-  const [bpDia, setBpDia] = useState("")
-  const [pulse, setPulse] = useState("")
-  const [resp,  setResp]  = useState("")
-  const [spo2,  setSpo2]  = useState("")
-  const [wt,    setWt]    = useState("")
+  const [temp,   setTemp]   = useState("")
+  const [bpSys,  setBpSys]  = useState("")
+  const [bpDia,  setBpDia]  = useState("")
+  const [pulse,  setPulse]  = useState("")
+  const [resp,   setResp]   = useState("")
+  const [spo2,   setSpo2]   = useState("")
+  const [wt,     setWt]     = useState("")
+  const [saving, setSaving] = useState(false)
 
   function reset() {
     setTemp(""); setBpSys(""); setBpDia(""); setPulse(""); setResp(""); setSpo2(""); setWt("")
   }
   function handleClose() { reset(); onClose() }
 
-  function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    onSaved({
-      temperature:     parseFloat(temp)  || 0,
-      bpSys:           parseInt(bpSys)   || 0,
-      bpDia:           parseInt(bpDia)   || 0,
-      pulse:           parseInt(pulse)   || 0,
-      respiratoryRate: parseInt(resp)    || 0,
-      spo2:            parseInt(spo2)    || 0,
-      weight:          parseFloat(wt)    || 0,
-      recordedAt:      new Date().toTimeString().slice(0, 5),
-    })
-    toast.success("Vital Signs Recorded", {
-      description: "Vital signs have been saved to this encounter.",
-    })
-    handleClose()
+    const body: Record<string, number> = {}
+    if (temp)  body.temperature      = parseFloat(temp)
+    if (bpSys) body.bpSystolic       = parseInt(bpSys)
+    if (bpDia) body.bpDiastolic      = parseInt(bpDia)
+    if (pulse) body.pulseRate        = parseInt(pulse)
+    if (resp)  body.respiratoryRate  = parseInt(resp)
+    if (spo2)  body.oxygenSaturation = parseInt(spo2)
+    if (wt)    body.weight           = parseFloat(wt)
+    if (Object.keys(body).length === 0) return
+    setSaving(true)
+    try {
+      const res = await fetch(
+        `${API_BASE}/patients/${patientId}/encounters/${encounterId}/vitals`,
+        {
+          method:  "POST",
+          headers: { "Content-Type": "application/json", ...authHeader() },
+          body:    JSON.stringify(body),
+        },
+      )
+      if (!res.ok) throw new Error("Failed")
+      const data = await res.json()
+      onSaved({
+        temperature:     data.temperature     ?? 0,
+        bpSys:           data.bpSystolic      ?? 0,
+        bpDia:           data.bpDiastolic     ?? 0,
+        pulse:           data.pulseRate       ?? 0,
+        respiratoryRate: data.respiratoryRate ?? 0,
+        spo2:            data.oxygenSaturation ?? 0,
+        weight:          data.weight          ?? 0,
+        recordedAt:      fmtTime(data.createdAt),
+      })
+      toast.success("Vital Signs Recorded", { description: "Vital signs have been saved to this encounter." })
+      handleClose()
+    } catch {
+      toast.error("Failed to save", { description: "Please try again." })
+    } finally {
+      setSaving(false)
+    }
   }
 
   const numCls =
@@ -589,14 +638,15 @@ function RecordVitalsDialog({
           </div>
 
           <DialogFooter className="border-t border-border bg-muted/20 px-6 py-4">
-            <Button type="button" variant="outline" onClick={handleClose}>
+            <Button type="button" variant="outline" onClick={handleClose} disabled={saving}>
               Cancel
             </Button>
             <Button
               type="submit"
+              disabled={saving}
               className="gap-2 bg-primary text-primary-foreground hover:bg-primary/90"
             >
-              <Activity size={16} /> Save Vital Signs
+              <Activity size={16} /> {saving ? "Saving..." : "Save Vital Signs"}
             </Button>
           </DialogFooter>
         </form>
@@ -611,10 +661,14 @@ function AddPrescriptionDialog({
   open,
   onClose,
   onAdd,
+  patientId,
+  encounterId,
 }: {
   open: boolean
   onClose: () => void
   onAdd: (p: Prescription) => void
+  patientId: string
+  encounterId: string
 }) {
   const [medication, setMedication] = useState("")
   const [dosage,     setDosage]     = useState("")
@@ -622,6 +676,7 @@ function AddPrescriptionDialog({
   const [route,      setRoute]      = useState("")
   const [duration,   setDuration]   = useState("")
   const [submitted,  setSubmitted]  = useState(false)
+  const [saving,     setSaving]     = useState(false)
 
   const errs = {
     medication: submitted && !medication.trim(),
@@ -636,24 +691,39 @@ function AddPrescriptionDialog({
   }
   function handleClose() { reset(); onClose() }
 
-  function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setSubmitted(true)
     if (!medication.trim() || !dosage.trim() || !frequency || !route || !duration.trim()) return
-    onAdd({
-      id:         `p-${Date.now()}`,
-      medication,
-      dosage,
-      frequency,
-      route,
-      duration,
-      prescriber: "Dr. Ekane Paul",
-      date:       new Date().toISOString().split("T")[0],
-    })
-    toast.success("Prescription Added", {
-      description: "The prescription has been recorded on this encounter.",
-    })
-    handleClose()
+    setSaving(true)
+    try {
+      const res = await fetch(
+        `${API_BASE}/patients/${patientId}/encounters/${encounterId}/prescriptions`,
+        {
+          method:  "POST",
+          headers: { "Content-Type": "application/json", ...authHeader() },
+          body:    JSON.stringify({ medicationName: medication, dosage, frequency, route, duration }),
+        },
+      )
+      if (!res.ok) throw new Error("Failed")
+      const data = await res.json()
+      onAdd({
+        id:         data.id,
+        medication: data.medicationName,
+        dosage:     data.dosage,
+        frequency:  data.frequency,
+        route:      data.route,
+        duration:   data.duration,
+        prescriber: "—",
+        date:       data.createdAt.slice(0, 10),
+      })
+      toast.success("Prescription Added", { description: "The prescription has been recorded on this encounter." })
+      handleClose()
+    } catch {
+      toast.error("Failed to save", { description: "Please try again." })
+    } finally {
+      setSaving(false)
+    }
   }
 
   const selCls = (err?: boolean) =>
@@ -795,14 +865,15 @@ function AddPrescriptionDialog({
           </div>
 
           <DialogFooter className="border-t border-border bg-muted/20 px-6 py-4">
-            <Button type="button" variant="outline" onClick={handleClose}>
+            <Button type="button" variant="outline" onClick={handleClose} disabled={saving}>
               Cancel
             </Button>
             <Button
               type="submit"
+              disabled={saving}
               className="gap-2 bg-primary text-primary-foreground hover:bg-primary/90"
             >
-              <Pill size={16} /> Add Prescription
+              <Pill size={16} /> {saving ? "Saving..." : "Add Prescription"}
             </Button>
           </DialogFooter>
         </form>
@@ -817,36 +888,56 @@ function RequestLabDialog({
   open,
   onClose,
   onAdd,
+  patientId,
+  encounterId,
 }: {
   open: boolean
   onClose: () => void
   onAdd: (l: LabRequest) => void
+  patientId: string
+  encounterId: string
 }) {
   const [test,      setTest]      = useState("")
   const [urgency,   setUrgency]   = useState<LabUrgency>("Routine")
   const [submitted, setSubmitted] = useState(false)
+  const [saving,    setSaving]    = useState(false)
 
   const testErr = submitted && !test
 
   function reset() { setTest(""); setUrgency("Routine"); setSubmitted(false) }
   function handleClose() { reset(); onClose() }
 
-  function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setSubmitted(true)
     if (!test) return
-    onAdd({
-      id:        `l-${Date.now()}`,
-      test,
-      requested: new Date().toTimeString().slice(0, 5),
-      urgency,
-      status:    "Pending",
-      result:    null,
-    })
-    toast.success("Lab Test Requested", {
-      description: `${test} has been added to the lab work queue.`,
-    })
-    handleClose()
+    setSaving(true)
+    try {
+      const res = await fetch(
+        `${API_BASE}/patients/${patientId}/encounters/${encounterId}/lab-requests`,
+        {
+          method:  "POST",
+          headers: { "Content-Type": "application/json", ...authHeader() },
+          body:    JSON.stringify({ testName: test, urgency: urgency.toLowerCase() }),
+        },
+      )
+      if (!res.ok) throw new Error("Failed")
+      const data = await res.json()
+      onAdd({
+        id:        data.id,
+        test:      data.testName,
+        requested: fmtTime(data.createdAt),
+        urgency:   capitalize(data.urgency) as LabUrgency,
+        status:    capitalize(data.status) as LabStatus,
+        result:    null,
+      })
+      toast.success("Lab Test Requested", { description: `${test} has been added to the lab work queue.` })
+      handleClose()
+    } catch {
+      toast.error("Failed to save", { description: "Please try again." })
+    } finally {
+      setSaving(false)
+    }
   }
 
   return (
@@ -899,14 +990,15 @@ function RequestLabDialog({
           </div>
 
           <DialogFooter className="border-t border-border bg-muted/20 px-6 py-4">
-            <Button type="button" variant="outline" onClick={handleClose}>
+            <Button type="button" variant="outline" onClick={handleClose} disabled={saving}>
               Cancel
             </Button>
             <Button
               type="submit"
+              disabled={saving}
               className="gap-2 bg-primary text-primary-foreground hover:bg-primary/90"
             >
-              <FlaskConical size={16} /> Request Test
+              <FlaskConical size={16} /> {saving ? "Requesting..." : "Request Test"}
             </Button>
           </DialogFooter>
         </form>
@@ -1022,20 +1114,123 @@ function TH({ children }: { children: React.ReactNode }) {
 
 // ── Main Page ─────────────────────────────────────────────────
 
+interface EncData {
+  id:                  string
+  date:                string
+  time:                string
+  unit:                string
+  complaint:           string
+  clinician:           string
+  clinicianInitials:   string
+  clinicianId:         string
+  status:              string
+  isOwnEncounter:      boolean
+}
+
 export function EncounterDetailPage() {
-  const { id = "HIS-001234" } = useParams()
-  const enc = MOCK_ENCOUNTER
+  const { id = "", encounterId = "" } = useParams()
+
+  const [enc,       setEnc]       = useState<EncData | null>(null)
+  const [loading,   setLoading]   = useState(true)
 
   const [activeTab, setActiveTab] = useState<Tab>("overview")
-  const [diagnoses, setDiagnoses] = useState<Diagnosis[]>(INIT_DIAGNOSES)
-  const [vitals,    setVitals]    = useState<VitalSigns | null>(MOCK_VITALS)
-  const [prescs,    setPrescs]    = useState<Prescription[]>(INIT_PRESCRIPTIONS)
-  const [labReqs,   setLabReqs]   = useState<LabRequest[]>(INIT_LAB_REQUESTS)
+  const [diagnoses, setDiagnoses] = useState<Diagnosis[]>([])
+  const [vitals,    setVitals]    = useState<VitalSigns | null>(null)
+  const [prescs,    setPrescs]    = useState<Prescription[]>([])
+  const [labReqs,   setLabReqs]   = useState<LabRequest[]>([])
 
   const [showAddDx,  setShowAddDx]  = useState(false)
   const [showVitals, setShowVitals] = useState(false)
   const [showRx,     setShowRx]     = useState(false)
   const [showLab,    setShowLab]    = useState(false)
+
+  useEffect(() => {
+    if (!id || !encounterId) return
+    const sub = getJwtSub()
+    fetch(`${API_BASE}/patients/${id}/encounters/${encounterId}`, { headers: authHeader() })
+      .then(r => r.json())
+      .then(data => {
+        setEnc({
+          id:                data.id,
+          date:              fmtDate(data.dateTime),
+          time:              fmtTime(data.dateTime),
+          unit:              data.clinicalUnit,
+          complaint:         data.presentingComplaint,
+          clinician:         data.clinicianName ?? "—",
+          clinicianInitials: data.clinicianName ? initials(data.clinicianName) : "—",
+          clinicianId:       data.clinicianId ?? "",
+          status:            "In Progress",
+          isOwnEncounter:    sub === data.clinicianId,
+        })
+        setDiagnoses(
+          (data.diagnoses ?? []).map((d: Record<string, string>) => ({
+            id:        d.id,
+            condition: d.conditionName,
+            icd10:     d.icd10Code ?? "",
+            severity:  capitalize(d.severity) as DiagSeverity,
+            status:    capitalize(d.status) as DiagStatus,
+            clinician: "—",
+            date:      d.createdAt?.slice(0, 10) ?? "",
+          })),
+        )
+        if (data.vitals) {
+          const v = data.vitals
+          setVitals({
+            temperature:     Number(v.temperature)      ?? 0,
+            bpSys:           Number(v.bp_systolic)      ?? 0,
+            bpDia:           Number(v.bp_diastolic)     ?? 0,
+            pulse:           Number(v.pulse_rate)       ?? 0,
+            respiratoryRate: Number(v.respiratory_rate) ?? 0,
+            spo2:            Number(v.oxygen_saturation) ?? 0,
+            weight:          Number(v.weight)           ?? 0,
+            recordedAt:      v.created_at ? fmtTime(v.created_at) : "",
+          })
+        }
+        setPrescs(
+          (data.prescriptions ?? []).map((p: Record<string, string>) => ({
+            id:         p.id,
+            medication: p.medicationName,
+            dosage:     p.dosage,
+            frequency:  p.frequency,
+            route:      p.route,
+            duration:   p.duration,
+            prescriber: "—",
+            date:       p.createdAt?.slice(0, 10) ?? "",
+          })),
+        )
+        setLabReqs(
+          (data.labRequests ?? []).map((l: Record<string, string>) => ({
+            id:        l.id,
+            test:      l.testName,
+            requested: l.createdAt ? fmtTime(l.createdAt) : "",
+            urgency:   capitalize(l.urgency) as LabUrgency,
+            status:    capitalize(l.status) as LabStatus,
+            result:    null,
+          })),
+        )
+      })
+      .catch(() => { /* keep loading skeleton */ })
+      .finally(() => setLoading(false))
+  }, [id, encounterId])
+
+  if (loading) {
+    return (
+      <div className="flex min-h-64 items-center justify-center">
+        <p className="text-sm text-muted-foreground">Loading encounter...</p>
+      </div>
+    )
+  }
+
+  if (!enc) {
+    return (
+      <div className="flex min-h-64 flex-col items-center justify-center gap-2">
+        <p className="text-sm font-medium text-destructive">Encounter not found.</p>
+        <Link to={`/patients/${id}`} className="text-sm text-primary hover:underline">
+          Back to patient profile
+        </Link>
+      </div>
+    )
+  }
 
   return (
     <div className="space-y-4">
@@ -1058,7 +1253,7 @@ export function EncounterDetailPage() {
               {enc.clinician} · {enc.unit}
             </p>
           </div>
-          {(enc.isOwnEncounter || MOCK_IS_HOSPITAL_ADMIN) && (
+          {enc.isOwnEncounter && (
             <Link
               to={`/patients/${id}/amend/encounter/${enc.id}`}
               className="flex shrink-0 items-center gap-2 rounded-lg border border-border bg-card px-4 py-2 text-sm font-medium text-foreground transition-colors hover:bg-muted"
@@ -1253,6 +1448,8 @@ export function EncounterDetailPage() {
             open={showAddDx}
             onClose={() => setShowAddDx(false)}
             onAdd={d => setDiagnoses(prev => [...prev, d])}
+            patientId={id}
+            encounterId={encounterId}
           />
         </>
       )}
@@ -1352,6 +1549,8 @@ export function EncounterDetailPage() {
             open={showVitals}
             onClose={() => setShowVitals(false)}
             onSaved={v => setVitals(v)}
+            patientId={id}
+            encounterId={encounterId}
           />
         </>
       )}
@@ -1416,6 +1615,8 @@ export function EncounterDetailPage() {
             open={showRx}
             onClose={() => setShowRx(false)}
             onAdd={p => setPrescs(prev => [...prev, p])}
+            patientId={id}
+            encounterId={encounterId}
           />
         </>
       )}
@@ -1498,6 +1699,8 @@ export function EncounterDetailPage() {
             open={showLab}
             onClose={() => setShowLab(false)}
             onAdd={l => setLabReqs(prev => [...prev, l])}
+            patientId={id}
+            encounterId={encounterId}
           />
         </>
       )}

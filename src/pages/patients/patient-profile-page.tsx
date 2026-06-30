@@ -716,9 +716,35 @@ export function PatientProfilePage() {
 
   const consentRefused = patient.consentStatus === "Refused"
 
-  const encTotalPages = Math.max(1, Math.ceil(MOCK_ENCOUNTERS.length / ENC_PAGE_SIZE))
+  const [encounters, setEncounters] = useState<typeof MOCK_ENCOUNTERS>([])
+  useEffect(() => {
+    if (!id) return
+    const token = localStorage.getItem("his_id_token")
+    fetch(`${API_BASE}/patients/${id}/encounters`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then(r => r.json())
+      .then(data => {
+        if (Array.isArray(data.encounters)) {
+          setEncounters(
+            data.encounters.map((e: Record<string, unknown>) => ({
+              id:        e.id as string,
+              date:      e.dateTime ? new Date(e.dateTime as string).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "—",
+              complaint: (e.presentingComplaint as string) ?? "",
+              clinician: (e.clinicianName as string) ?? "—",
+              unit:      (e.clinicalUnit as string) ?? "—",
+              diagnoses: Number(e.diagnosisCount ?? 0),
+            })),
+          )
+        }
+      })
+      .catch(() => {})
+  }, [id])
+
+  const encRows       = encounters.length > 0 ? encounters : MOCK_ENCOUNTERS
+  const encTotalPages = Math.max(1, Math.ceil(encRows.length / ENC_PAGE_SIZE))
   const encStart      = (encPage - 1) * ENC_PAGE_SIZE
-  const encPageRows   = MOCK_ENCOUNTERS.slice(encStart, encStart + ENC_PAGE_SIZE)
+  const encPageRows   = encRows.slice(encStart, encStart + ENC_PAGE_SIZE)
 
   return (
     <div className="space-y-6">
@@ -980,7 +1006,7 @@ export function PatientProfilePage() {
                 {/* Pagination footer */}
                 <div className="flex items-center justify-between border-t border-border px-4 py-3">
                   <span className="text-xs text-muted-foreground">
-                    {encStart + 1}–{Math.min(encStart + ENC_PAGE_SIZE, MOCK_ENCOUNTERS.length)} of {MOCK_ENCOUNTERS.length}
+                    {encStart + 1}–{Math.min(encStart + ENC_PAGE_SIZE, encRows.length)} of {encRows.length}
                   </span>
                   <div className="flex items-center gap-1">
                     <button

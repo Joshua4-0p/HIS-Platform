@@ -75,7 +75,7 @@ export const handler = async (event: APIGatewayProxyEventV2) => {
           `SELECT id, patient_number, full_name, date_of_birth, telephone,
                   region_district, created_at, consent_personal_data
            FROM patients
-           WHERE hospital_id = $1
+           WHERE hospital_id = $1 AND is_active = true
              AND (full_name % $2 OR telephone = $2 OR patient_number = $2)
            ORDER BY similarity(full_name, $2) DESC, created_at DESC
            LIMIT 20`,
@@ -87,14 +87,14 @@ export const handler = async (event: APIGatewayProxyEventV2) => {
           `SELECT id, patient_number, full_name, date_of_birth, telephone,
                   region_district, created_at, consent_personal_data
            FROM patients
-           WHERE hospital_id = $1
+           WHERE hospital_id = $1 AND is_active = true
            ORDER BY created_at DESC`,
           [hospitalId],
         );
         patients = res.rows;
       }
 
-      // Compute stats from full dataset (ignores search filter for accurate counts)
+      // Compute stats from active patients only
       const statsRes = await pool.query(
         `SELECT
            COUNT(*)                                                   AS total,
@@ -104,7 +104,7 @@ export const handler = async (event: APIGatewayProxyEventV2) => {
              WHERE DATE_TRUNC('month', created_at) = DATE_TRUNC('month', NOW())
            )                                                          AS this_month
          FROM patients
-         WHERE hospital_id = $1`,
+         WHERE hospital_id = $1 AND is_active = true`,
         [hospitalId],
       );
       const s = statsRes.rows[0];
@@ -121,8 +121,8 @@ export const handler = async (event: APIGatewayProxyEventV2) => {
       }));
 
       await writeAuditLog(pool, {
-        userId, hospitalId, patientId: null,
-        actionType: 'READ', resourceType: 'patient_list', resourceId: null, ipAddress: ip,
+        userId, hospitalId,
+        actionType: 'READ', resourceType: 'patient_list', resourceId: hospitalId, ipAddress: ip,
       });
 
       logger.info('GET /patients', userId, hospitalId, { count: mapped.length, search: !!q });
@@ -140,7 +140,7 @@ export const handler = async (event: APIGatewayProxyEventV2) => {
 
     // ── POST /patients ───────────────────────────────────────────────────────
     if (method === 'POST' && segments.length === 1) {
-      await requirePermission(pool, userId, hospitalId, 'patient:write');
+      await requirePermission(pool, userId, hospitalId, 'patient:create');
 
       const {
         fullName, dob, sex, phone, region, address,
@@ -245,7 +245,7 @@ export const handler = async (event: APIGatewayProxyEventV2) => {
                 emergency_contact_name, emergency_contact_phone, emergency_contact_relationship,
                 national_id, blood_group, known_allergies, chronic_conditions,
                 consent_personal_data, consent_public_reporting,
-                consent_updated_at, created_at, created_by
+                consent_updated_at, created_at, created_by, is_active
          FROM patients
          WHERE id = $1 AND hospital_id = $2`,
         [patientId, hospitalId],
@@ -290,12 +290,13 @@ export const handler = async (event: APIGatewayProxyEventV2) => {
         consentPublicReporting:      p.consent_public_reporting,
         consentUpdatedAt:            p.consent_updated_at,
         registeredAt:                p.created_at,
+        isActive:                    p.is_active,
       });
     }
 
     // ── PUT /patients/{id} ───────────────────────────────────────────────────
     if (method === 'PUT' && segments.length === 2) {
-      await requirePermission(pool, userId, hospitalId, 'patient:write');
+      await requirePermission(pool, userId, hospitalId, 'patient:update');
 
       // Verify patient belongs to this hospital
       const check = await pool.query(
@@ -304,17 +305,32 @@ export const handler = async (event: APIGatewayProxyEventV2) => {
       );
       if (check.rows.length === 0) return notFound('Patient not found.');
 
-      const { nationalId, bloodGroup, allergies, conditions } = body;
+      const {
+        fullName, phone, region, address,
+        emergencyName, emergencyPhone, relationship,
+        nationalId, bloodGroup, allergies, conditions,
+      } = body;
 
       await pool.query(
         `UPDATE patients
-         SET national_id        = COALESCE($3, national_id),
-             blood_group        = COALESCE($4, blood_group),
-             known_allergies    = COALESCE($5, known_allergies),
-             chronic_conditions = COALESCE($6, chronic_conditions)
+         SET full_name                    = COALESCE($3,  full_name),
+             telephone                    = COALESCE($4,  telephone),
+             region_district              = COALESCE($5,  region_district),
+             address                      = COALESCE($6,  address),
+             emergency_contact_name       = COALESCE($7,  emergency_contact_name),
+             emergency_contact_phone      = COALESCE($8,  emergency_contact_phone),
+             emergency_contact_relationship = COALESCE($9, emergency_contact_relationship),
+             national_id                  = COALESCE($10, national_id),
+             blood_group                  = COALESCE($11, blood_group),
+             known_allergies              = COALESCE($12, known_allergies),
+             chronic_conditions           = COALESCE($13, chronic_conditions)
          WHERE id = $1 AND hospital_id = $2`,
-        [patientId, hospitalId, nationalId ?? null, bloodGroup ?? null,
-          allergies ?? null, conditions ?? null],
+        [
+          patientId, hospitalId,
+          fullName ?? null, phone ?? null, region ?? null, address ?? null,
+          emergencyName ?? null, emergencyPhone ?? null, relationship ?? null,
+          nationalId ?? null, bloodGroup ?? null, allergies ?? null, conditions ?? null,
+        ],
       );
 
       await writeAuditLog(pool, {
@@ -329,7 +345,7 @@ export const handler = async (event: APIGatewayProxyEventV2) => {
 
     // ── PUT /patients/{id}/consent ───────────────────────────────────────────
     if (method === 'PUT' && segments.length === 3 && segments[2] === 'consent') {
-      await requirePermission(pool, userId, hospitalId, 'patient:write');
+      await requirePermission(pool, userId, hospitalId, 'patient:update');
 
       const check = await pool.query(
         'SELECT id FROM patients WHERE id = $1 AND hospital_id = $2',
@@ -368,6 +384,34 @@ export const handler = async (event: APIGatewayProxyEventV2) => {
       logger.info('PUT /patients/:id/consent', userId, hospitalId, { patientId, consentPersonalData, consentReporting });
 
       return ok({ updated: true });
+    }
+
+    // ── POST /patients/{id}/deactivate ──────────────────────────────────────
+    // patient:delete = soft-delete only. Records preserved for audit (REQ-F-019).
+    if (method === 'POST' && segments.length === 3 && segments[2] === 'deactivate') {
+      await requirePermission(pool, userId, hospitalId, 'patient:delete');
+
+      const check = await pool.query(
+        'SELECT id, full_name, is_active FROM patients WHERE id = $1 AND hospital_id = $2',
+        [patientId, hospitalId],
+      );
+      if (check.rows.length === 0) return notFound('Patient not found.');
+      if (!check.rows[0].is_active) return badRequest('Patient is already deactivated.');
+
+      await pool.query(
+        `UPDATE patients
+         SET is_active = false, deactivated_at = NOW(), deactivated_by = $1
+         WHERE id = $2 AND hospital_id = $3`,
+        [userId, patientId, hospitalId],
+      );
+
+      await writeAuditLog(pool, {
+        userId, hospitalId, patientId,
+        actionType: 'DELETE', resourceType: 'patient', resourceId: patientId, ipAddress: ip,
+      });
+
+      logger.info('POST /patients/:id/deactivate', userId, hospitalId, { patientId });
+      return ok({ deactivated: true, patientId, name: check.rows[0].full_name });
     }
 
     // ── POST /patients/{id}/amend/{recordType}/{recordId} ────────────────────

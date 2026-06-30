@@ -8,7 +8,7 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { cn } from "@/lib/utils"
 import { API_BASE } from "@/lib/api"
 
-// ── Permission definitions (exact SRS REQ-F-010 atomic keys) ─
+// ── Granular permission definitions (REQ-F-010) ──────────────
 
 interface Permission {
   key: string
@@ -16,23 +16,108 @@ interface Permission {
   description: string
 }
 
-const PERMISSIONS: Permission[] = [
-  { key: "patient:read",        label: "patient:read",        description: "View patient demographic data and history." },
-  { key: "patient:write",       label: "patient:write",       description: "Create and edit patient records." },
-  { key: "patient:amend",       label: "patient:amend",       description: "Submit versioned amendments to clinical records." },
-  { key: "diagnosis:write",     label: "diagnosis:write",     description: "Record and update clinical diagnoses." },
-  { key: "lab_result:read",     label: "lab_result:read",     description: "View lab results for assigned patients." },
-  { key: "lab_result:write",    label: "lab_result:write",    description: "Enter and submit laboratory test results." },
-  { key: "prescription:write",  label: "prescription:write",  description: "Write and record medication prescriptions." },
-  { key: "appointment:write",   label: "appointment:write",   description: "Create, update, and cancel appointments." },
-  { key: "analytics:view",      label: "analytics:view",      description: "Access analytics dashboards and reports." },
-  { key: "staff:manage",        label: "staff:manage",        description: "Create, edit, and deactivate staff accounts." },
-  { key: "role:assign",         label: "role:assign",         description: "Assign and change staff roles." },
-  { key: "transfer:request",    label: "transfer:request",    description: "Submit cross-hospital patient access requests." },
-  { key: "transfer:approve",    label: "transfer:approve",    description: "Approve or deny incoming transfer requests." },
+interface PermissionGroup {
+  group: string
+  permissions: Permission[]
+}
+
+const PERMISSION_GROUPS: PermissionGroup[] = [
+  {
+    group: "Patients",
+    permissions: [
+      { key: "patient:create", label: "patient:create", description: "Register new patient records." },
+      { key: "patient:read",   label: "patient:read",   description: "View patient demographic data and history." },
+      { key: "patient:update", label: "patient:update", description: "Edit patient demographic and contact details." },
+      { key: "patient:delete", label: "patient:delete", description: "Soft-deactivate patient records (retains audit trail)." },
+      { key: "patient:amend",  label: "patient:amend",  description: "Submit versioned amendments to clinical records." },
+    ],
+  },
+  {
+    group: "Appointments",
+    permissions: [
+      { key: "appointment:create", label: "appointment:create", description: "Schedule new appointments." },
+      { key: "appointment:read",   label: "appointment:read",   description: "View appointment calendar and details." },
+      { key: "appointment:update", label: "appointment:update", description: "Reschedule or change appointment details." },
+      { key: "appointment:cancel", label: "appointment:cancel", description: "Cancel scheduled appointments with a reason." },
+    ],
+  },
+  {
+    group: "Clinical Encounters",
+    permissions: [
+      { key: "encounter:create", label: "encounter:create", description: "Open a new clinical encounter record." },
+      { key: "encounter:read",   label: "encounter:read",   description: "View encounter history and details." },
+    ],
+  },
+  {
+    group: "Diagnoses",
+    permissions: [
+      { key: "diagnosis:create", label: "diagnosis:create", description: "Record diagnoses against an encounter." },
+      { key: "diagnosis:read",   label: "diagnosis:read",   description: "View patient diagnoses." },
+    ],
+  },
+  {
+    group: "Vital Signs",
+    permissions: [
+      { key: "vitals:create", label: "vitals:create", description: "Record vital sign observations." },
+      { key: "vitals:read",   label: "vitals:read",   description: "View patient vital signs." },
+    ],
+  },
+  {
+    group: "Prescriptions",
+    permissions: [
+      { key: "prescription:create", label: "prescription:create", description: "Write medication prescriptions." },
+      { key: "prescription:read",   label: "prescription:read",   description: "View prescriptions for assigned patients." },
+    ],
+  },
+  {
+    group: "Lab Results",
+    permissions: [
+      { key: "lab_result:create", label: "lab_result:create", description: "Record results for lab test requests." },
+      { key: "lab_result:read",   label: "lab_result:read",   description: "View lab results." },
+      { key: "lab_result:update", label: "lab_result:update", description: "Issue versioned corrections to lab results." },
+    ],
+  },
+  {
+    group: "Bulk Upload",
+    permissions: [
+      { key: "bulk_upload:create", label: "bulk_upload:create", description: "Upload bulk patient data via CSV." },
+      { key: "bulk_upload:read",   label: "bulk_upload:read",   description: "View bulk upload history and status." },
+    ],
+  },
+  {
+    group: "Transfers",
+    permissions: [
+      { key: "transfer:request", label: "transfer:request", description: "Submit cross-hospital patient transfer requests." },
+      { key: "transfer:approve", label: "transfer:approve", description: "Approve or deny incoming transfer requests." },
+    ],
+  },
+  {
+    group: "Analytics",
+    permissions: [
+      { key: "analytics:view", label: "analytics:view", description: "Access analytics dashboards and population reports." },
+    ],
+  },
+  {
+    group: "Staff Management",
+    permissions: [
+      { key: "staff:create",     label: "staff:create",     description: "Invite and create new staff accounts." },
+      { key: "staff:read",       label: "staff:read",       description: "View staff list and individual profiles." },
+      { key: "staff:update",     label: "staff:update",     description: "Edit staff details and activate accounts." },
+      { key: "staff:deactivate", label: "staff:deactivate", description: "Deactivate and re-activate staff accounts." },
+    ],
+  },
+  {
+    group: "Role Management",
+    permissions: [
+      { key: "role:create", label: "role:create", description: "Create new custom hospital roles." },
+      { key: "role:update", label: "role:update", description: "Edit role names, descriptions, and permissions." },
+      { key: "role:delete", label: "role:delete", description: "Delete custom roles (cannot delete default roles)." },
+      { key: "role:assign", label: "role:assign", description: "Assign roles to staff members." },
+    ],
+  },
 ]
 
-const ALL_PERMISSION_KEYS = PERMISSIONS.map((p) => p.key)
+const ALL_PERMISSION_KEYS = PERMISSION_GROUPS.flatMap((g) => g.permissions.map((p) => p.key))
 
 // ── Types ─────────────────────────────────────────────────────
 
@@ -135,7 +220,7 @@ export function RoleManagementPage() {
       const res = await fetch(`${API_BASE}/roles/${selected.id}`, {
         method: "PUT",
         headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ name: editName, description: editDesc, permissions: editPerms }),
+        body: JSON.stringify({ name: editName, description: editDesc, permissionKeys: editPerms }),
       })
       const json = await res.json()
       if (!res.ok) {
@@ -194,7 +279,7 @@ export function RoleManagementPage() {
         body: JSON.stringify({
           name: "New Custom Role",
           description: "Describe this role's purpose and scope.",
-          permissions: [],
+          permissionKeys: [],
         }),
       })
       const json = await res.json()
@@ -429,10 +514,12 @@ export function RoleManagementPage() {
               </div>
             </div>
 
-            {/* Permissions grid — 3 columns */}
+            {/* Permissions — grouped accordion */}
             <div className="flex-1 overflow-y-auto p-6">
               <div className="mb-4 flex items-center justify-between">
-                <h3 className="text-sm font-semibold text-foreground">Permissions</h3>
+                <h3 className="text-sm font-semibold text-foreground">
+                  Permissions <span className="ml-1 text-xs font-normal text-muted-foreground">({editPerms.length}/{ALL_PERMISSION_KEYS.length})</span>
+                </h3>
                 {isEditable && (
                   <label className="flex cursor-pointer items-center gap-2 text-xs text-muted-foreground">
                     <span>Select All</span>
@@ -445,36 +532,67 @@ export function RoleManagementPage() {
                   </label>
                 )}
               </div>
-              <div className="grid grid-cols-3 gap-3">
-                {PERMISSIONS.map((perm) => (
-                  <div
-                    key={perm.key}
-                    className={cn(
-                      "flex items-start gap-2.5 rounded-lg border border-border bg-card p-3 transition-colors",
-                      isEditable && "hover:bg-muted/40"
-                    )}
-                  >
-                    <Checkbox
-                      id={perm.key}
-                      checked={editPerms.includes(perm.key)}
-                      onCheckedChange={(checked) => isEditable && togglePerm(perm.key, !!checked)}
-                      disabled={!isEditable}
-                      className="mt-0.5 shrink-0"
-                    />
-                    <div className="min-w-0">
-                      <label
-                        htmlFor={perm.key}
-                        className={cn(
-                          "block text-xs font-semibold text-foreground",
-                          isEditable ? "cursor-pointer" : "cursor-not-allowed opacity-70"
-                        )}
-                      >
-                        {perm.label}
-                      </label>
-                      <p className="mt-0.5 text-xs leading-relaxed text-muted-foreground">{perm.description}</p>
+              <div className="space-y-4">
+                {PERMISSION_GROUPS.map((group) => {
+                  const groupKeys = group.permissions.map((p) => p.key)
+                  const groupSelected = groupKeys.filter((k) => editPerms.includes(k)).length
+                  return (
+                    <div key={group.group} className="rounded-lg border border-border">
+                      <div className="flex items-center justify-between border-b border-border bg-muted/30 px-4 py-2.5">
+                        <span className="text-xs font-semibold uppercase tracking-wide text-foreground">
+                          {group.group}
+                        </span>
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs text-muted-foreground">{groupSelected}/{groupKeys.length}</span>
+                          {isEditable && (
+                            <Checkbox
+                              checked={groupSelected === groupKeys.length}
+                              onCheckedChange={(checked) => {
+                                if (checked) {
+                                  setEditPerms((prev) => [...new Set([...prev, ...groupKeys])])
+                                } else {
+                                  setEditPerms((prev) => prev.filter((k) => !groupKeys.includes(k)))
+                                }
+                              }}
+                            />
+                          )}
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-1 divide-y divide-border sm:grid-cols-2 sm:divide-y-0">
+                        {group.permissions.map((perm, i) => (
+                          <div
+                            key={perm.key}
+                            className={cn(
+                              "flex items-start gap-2.5 px-4 py-3 transition-colors",
+                              isEditable && "hover:bg-muted/30",
+                              i % 2 === 0 && i + 1 < group.permissions.length && "sm:border-r sm:border-border",
+                            )}
+                          >
+                            <Checkbox
+                              id={perm.key}
+                              checked={editPerms.includes(perm.key)}
+                              onCheckedChange={(checked) => isEditable && togglePerm(perm.key, !!checked)}
+                              disabled={!isEditable}
+                              className="mt-0.5 shrink-0"
+                            />
+                            <div className="min-w-0">
+                              <label
+                                htmlFor={perm.key}
+                                className={cn(
+                                  "block font-mono text-xs font-semibold text-foreground",
+                                  isEditable ? "cursor-pointer" : "cursor-not-allowed opacity-70"
+                                )}
+                              >
+                                {perm.label}
+                              </label>
+                              <p className="mt-0.5 text-xs leading-relaxed text-muted-foreground">{perm.description}</p>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  )
+                })}
               </div>
             </div>
 

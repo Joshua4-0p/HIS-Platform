@@ -486,7 +486,9 @@ export class HisBackendStack extends cdk.Stack {
       { routePath: '/patients',                                     methods: [apigw2.HttpMethod.GET, apigw2.HttpMethod.POST] },
       { routePath: '/patients/{id}',                               methods: [apigw2.HttpMethod.GET, apigw2.HttpMethod.PUT] },
       { routePath: '/patients/{id}/consent',                       methods: [apigw2.HttpMethod.PUT] },
+      { routePath: '/patients/{id}/deactivate',                    methods: [apigw2.HttpMethod.POST] },
       { routePath: '/patients/{id}/amend/{recordType}/{recordId}', methods: [apigw2.HttpMethod.POST] },
+      { routePath: '/users/me/permissions',                        methods: [apigw2.HttpMethod.GET] },
     ]) {
       this.httpApi.addRoutes({
         path:        routePath,
@@ -546,7 +548,7 @@ export class HisBackendStack extends cdk.Stack {
 
     for (const { routePath, methods } of [
       { routePath: '/appointments',             methods: [apigw2.HttpMethod.GET, apigw2.HttpMethod.POST] },
-      { routePath: '/appointments/{id}',        methods: [apigw2.HttpMethod.GET] },
+      { routePath: '/appointments/{id}',        methods: [apigw2.HttpMethod.GET, apigw2.HttpMethod.PUT] },
       { routePath: '/appointments/{id}/cancel', methods: [apigw2.HttpMethod.PUT] },
     ]) {
       this.httpApi.addRoutes({
@@ -558,7 +560,76 @@ export class HisBackendStack extends cdk.Stack {
     }
 
     // =========================================================================
-    // 10. Stack Outputs
+    // 10. Phase 10: clinical-service Lambda (VPC-bound, 7 routes)
+    // Encounters, diagnoses, vital signs, prescriptions, lab requests.
+    // Consent guard (REQ-F-016): Refused patients cannot have new clinical records.
+    // encounter.staff_id = JWT userId (REQ-F-034, attending clinician auto-populated).
+    // Clinical records are immutable (REQ-F-025) - no DELETE/UPDATE endpoints.
+    // REQ-F-034 to REQ-F-038.
+    // =========================================================================
+    const clinicalServiceRole = new iam.Role(this, 'ClinicalServiceRole', {
+      roleName:  'his-clinical-service-role',
+      assumedBy: new iam.ServicePrincipal('lambda.amazonaws.com'),
+      managedPolicies: [
+        iam.ManagedPolicy.fromAwsManagedPolicyName('service-role/AWSLambdaVPCAccessExecutionRole'),
+      ],
+    });
+
+    // IAM DB auth - no Secrets Manager at runtime (REQ-NF-009)
+    clinicalServiceRole.addToPolicy(new iam.PolicyStatement({
+      effect:    iam.Effect.ALLOW,
+      actions:   ['rds-db:connect'],
+      resources: [`arn:aws:rds-db:${this.region}:${account}:dbuser:*/his_app`],
+    }));
+
+    const clinicalServiceFn = new nodejs.NodejsFunction(this, 'ClinicalServiceFn', {
+      functionName: 'his-clinical-service',
+      entry:        path.join(__dirname, '../../lambda/clinical-service/handler.ts'),
+      runtime:      lambda.Runtime.NODEJS_20_X,
+      handler:      'handler',
+      role:         clinicalServiceRole,
+      timeout:      cdk.Duration.seconds(30),
+      memorySize:   512,
+      // reservedConcurrentExecutions: 200 -- spec REQ-NF-021 requires 200 but this sandbox
+      // account has a ceiling of 10. Request a Service Quotas increase for production.
+      vpc:          props.vpcStack.vpc,
+      vpcSubnets:   { subnetType: ec2.SubnetType.PRIVATE_ISOLATED },
+      securityGroups: [props.vpcStack.lambdaSg],
+      environment: {
+        RDS_HOSTNAME: props.databaseStack.rdsInstance.dbInstanceEndpointAddress,
+        RDS_PORT:     props.databaseStack.rdsInstance.dbInstanceEndpointPort,
+        RDS_DB_NAME:  'hisdb',
+      },
+      bundling: {
+        minify:          true,
+        sourceMap:       false,
+        externalModules: ['@aws-sdk/*'],
+      },
+    });
+
+    const clinicalIntegration = new apigw2Integrations.HttpLambdaIntegration(
+      'ClinicalIntegration',
+      clinicalServiceFn,
+    );
+
+    for (const { routePath, methods } of [
+      { routePath: '/patients/{id}/encounters',                     methods: [apigw2.HttpMethod.GET, apigw2.HttpMethod.POST] },
+      { routePath: '/patients/{id}/encounters/{eid}',               methods: [apigw2.HttpMethod.GET] },
+      { routePath: '/patients/{id}/encounters/{eid}/diagnoses',     methods: [apigw2.HttpMethod.POST] },
+      { routePath: '/patients/{id}/encounters/{eid}/vitals',        methods: [apigw2.HttpMethod.POST] },
+      { routePath: '/patients/{id}/encounters/{eid}/prescriptions', methods: [apigw2.HttpMethod.POST] },
+      { routePath: '/patients/{id}/encounters/{eid}/lab-requests',  methods: [apigw2.HttpMethod.POST] },
+    ]) {
+      this.httpApi.addRoutes({
+        path:        routePath,
+        methods,
+        integration: clinicalIntegration,
+        authorizer:  this.cognitoAuthorizer,
+      });
+    }
+
+    // =========================================================================
+    // 11. Stack Outputs
     // =========================================================================
     new cdk.CfnOutput(this, 'ApiGatewayUrl', {
       value:      this.httpApi.apiEndpoint,

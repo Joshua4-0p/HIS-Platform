@@ -541,6 +541,7 @@ export function AppShell({
     localStorage.removeItem('his_id_token')
     localStorage.removeItem('his_refresh_token')
     localStorage.removeItem('his_user')
+    localStorage.removeItem('his_permissions')
     navigate('/login')
   }, [navigate])
 

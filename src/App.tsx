@@ -33,6 +33,7 @@ import { SystemConfigPage }       from "@/pages/super-admin/system-config-page"
 // Phase 5 — Patient Registration & Search
 import { PatientSearchPage } from "@/pages/patients/patient-search-page"
 import { PatientFormPage } from "@/pages/patients/patient-form-page"
+import { EditPatientPage } from "@/pages/patients/edit-patient-page"
 
 // Phase 6 — Patient Profile & Consent Management
 import { PatientProfilePage } from "@/pages/patients/patient-profile-page"
@@ -93,8 +94,9 @@ export default function App() {
         {/* ── Hospital staff routes — Phase 2+ (standard shell) ── */}
         <Route path="/dashboard" element={<AppShell><DashboardPage /></AppShell>} />
         {/* ── Phase 5 — Patient Registration & Search ── */}
-        <Route path="/patients"     element={<AppShell><PatientSearchPage /></AppShell>} />
-        <Route path="/patients/new" element={<AppShell><PatientFormPage /></AppShell>} />
+        <Route path="/patients"          element={<AppShell><PatientSearchPage /></AppShell>} />
+        <Route path="/patients/new"      element={<AppShell><PatientFormPage /></AppShell>} />
+        <Route path="/patients/:id/edit" element={<AppShell><EditPatientPage /></AppShell>} />
         {/* ── Phase 6 — Patient Profile & Consent Management ── */}
         <Route path="/patients/:id/consent"                    element={<AppShell><UpdateConsentPage /></AppShell>} />
         <Route path="/patients/:id/amend/:recordType/:recordId" element={<AppShell><AmendClinicalRecordPage /></AppShell>} />

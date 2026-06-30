@@ -318,11 +318,12 @@ export const handler = async (event: APIGatewayProxyEventV2) => {
       }
     }
 
-    // ── GET /staff (JWT) ────────────────────────────────────────────────────
+    // ── GET /staff (JWT + staff:read) ───────────────────────────────────────
     if (method === 'GET' && path === '/staff') {
       const claims = getClaims(event);
       const hospitalId = asUuid(claims.hospitalId);
       if (!hospitalId) return ok({ staff: [] });
+      await requirePermission(pool, claims.userId, hospitalId, 'staff:read');
       const res = await pool.query(
         `SELECT u.id, u.full_name, u.email, u.job_title, u.region_district,
                 u.is_active, u.ward_head_unit, u.created_at,
@@ -351,11 +352,11 @@ export const handler = async (event: APIGatewayProxyEventV2) => {
       });
     }
 
-    // ── POST /staff (JWT + staff:manage) ────────────────────────────────────
+    // ── POST /staff (JWT + staff:create) ────────────────────────────────────
     if (method === 'POST' && path === '/staff') {
       const claims = getClaims(event);
       const hospitalId = claims.hospitalId;
-      await requirePermission(pool, claims.userId, hospitalId, 'staff:manage');
+      await requirePermission(pool, claims.userId, hospitalId, 'staff:create');
 
       const { fullName, email, jobTitle, regionDistrict, roleId, wardHeadUnit } = body;
       if (!fullName || !email || !jobTitle || !regionDistrict || !roleId) {
@@ -496,7 +497,7 @@ export const handler = async (event: APIGatewayProxyEventV2) => {
       }
 
       if (method === 'POST' && action === 'deactivate') {
-        await requirePermission(pool, claims.userId, hospitalId, 'staff:manage');
+        await requirePermission(pool, claims.userId, hospitalId, 'staff:deactivate');
         const staffRes = await pool.query(
           'SELECT id, email FROM users WHERE id = $1 AND hospital_id = $2',
           [staffId, hospitalId],
@@ -522,7 +523,7 @@ export const handler = async (event: APIGatewayProxyEventV2) => {
       }
 
       if (method === 'POST' && action === 'activate') {
-        await requirePermission(pool, claims.userId, hospitalId, 'staff:manage');
+        await requirePermission(pool, claims.userId, hospitalId, 'staff:deactivate');
         const staffRes = await pool.query(
           'SELECT id, email FROM users WHERE id = $1 AND hospital_id = $2',
           [staffId, hospitalId],
@@ -546,6 +547,7 @@ export const handler = async (event: APIGatewayProxyEventV2) => {
       const hospitalId = claims.hospitalId;
 
       if (method === 'GET') {
+        await requirePermission(pool, claims.userId, hospitalId, 'staff:read');
         const res = await pool.query(
           `SELECT u.id, u.full_name, u.email, u.job_title, u.region_district,
                   u.is_active, u.ward_head_unit, u.created_at,
@@ -573,7 +575,7 @@ export const handler = async (event: APIGatewayProxyEventV2) => {
       }
 
       if (method === 'PUT') {
-        await requirePermission(pool, claims.userId, hospitalId, 'staff:manage');
+        await requirePermission(pool, claims.userId, hospitalId, 'staff:update');
         const check = await pool.query(
           'SELECT id FROM users WHERE id = $1 AND hospital_id = $2',
           [staffId, hospitalId],
@@ -626,11 +628,11 @@ export const handler = async (event: APIGatewayProxyEventV2) => {
       });
     }
 
-    // ── POST /roles (JWT + role:assign) ─────────────────────────────────────
+    // ── POST /roles (JWT + role:create) ─────────────────────────────────────
     if (method === 'POST' && path === '/roles') {
       const claims = getClaims(event);
       const hospitalId = claims.hospitalId;
-      await requirePermission(pool, claims.userId, hospitalId, 'role:assign');
+      await requirePermission(pool, claims.userId, hospitalId, 'role:create');
 
       const { name, permissionKeys } = body;
       if (!name) return badRequest('name is required.');
@@ -684,7 +686,7 @@ export const handler = async (event: APIGatewayProxyEventV2) => {
       const hospitalId = claims.hospitalId;
 
       if (method === 'PUT') {
-        await requirePermission(pool, claims.userId, hospitalId, 'role:assign');
+        await requirePermission(pool, claims.userId, hospitalId, 'role:update');
         const roleRes = await pool.query(
           'SELECT id FROM roles WHERE id = $1 AND hospital_id = $2',
           [roleId, hospitalId],
@@ -725,7 +727,7 @@ export const handler = async (event: APIGatewayProxyEventV2) => {
       }
 
       if (method === 'DELETE') {
-        await requirePermission(pool, claims.userId, hospitalId, 'role:assign');
+        await requirePermission(pool, claims.userId, hospitalId, 'role:delete');
         const roleRes = await pool.query(
           'SELECT id FROM roles WHERE id = $1 AND hospital_id = $2',
           [roleId, hospitalId],
@@ -741,12 +743,12 @@ export const handler = async (event: APIGatewayProxyEventV2) => {
       }
     }
 
-    // ── GET /roles/history (JWT + staff:manage) ─────────────────────────────
+    // ── GET /roles/history (JWT + staff:read) ───────────────────────────────
     if (method === 'GET' && path === '/roles/history') {
       const claims = getClaims(event);
       const hospitalId = asUuid(claims.hospitalId);
       if (!hospitalId) return ok({ history: [] });
-      await requirePermission(pool, claims.userId, hospitalId, 'staff:manage');
+      await requirePermission(pool, claims.userId, hospitalId, 'staff:read');
       const res = await pool.query(
         `SELECT rah.id, rah.created_at,
                 admin_u.full_name AS admin_name,
@@ -797,7 +799,7 @@ export const handler = async (event: APIGatewayProxyEventV2) => {
       }
 
       if (method === 'PUT') {
-        await requirePermission(pool, claims.userId, hospitalId, 'staff:manage');
+        await requirePermission(pool, claims.userId, hospitalId, 'staff:update');
         const { facilityName, address, region, contactPhone, contactEmail } = body;
         const name = facilityName;
         const regionDistrict = region;
@@ -820,6 +822,23 @@ export const handler = async (event: APIGatewayProxyEventV2) => {
           contactPhone: h.contact_phone, contactEmail: h.contact_email,
         });
       }
+    }
+
+    // ── GET /users/me/permissions (JWT) ──────────────────────────────────────
+    if (method === 'GET' && path === '/users/me/permissions') {
+      const claims = getClaims(event);
+      const hospitalId = asUuid(claims.hospitalId);
+      if (!hospitalId) return ok({ permissions: [] });
+
+      const res = await pool.query(
+        `SELECT p.name
+         FROM user_roles ur
+         JOIN role_permissions rp ON rp.role_id = ur.role_id
+         JOIN permissions p ON p.id = rp.permission_id
+         WHERE ur.user_id = $1`,
+        [claims.userId],
+      );
+      return ok({ permissions: res.rows.map((r: { name: string }) => r.name) });
     }
 
     return notFound('Route not found.');

@@ -7,19 +7,24 @@ import {
   ChevronRight,
   AlertCircle,
   Clock,
+  Pencil,
+  X,
+  User,
+  Loader2,
 } from "lucide-react"
 import { toast } from "sonner"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
+import { Input } from "@/components/ui/input"
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
-  DialogFooter,
 } from "@/components/ui/dialog"
 import { API_BASE } from "@/lib/api"
+import { usePermissions } from "@/hooks/use-permissions"
 
 // ── Types ─────────────────────────────────────────────────────
 
@@ -124,10 +129,10 @@ const TODAY_STR = toDateStr(NOW)
 
 function DailyBlock({
   appt,
-  onRequestCancel,
+  onSelect,
 }: {
   appt: Appointment
-  onRequestCancel: (a: Appointment) => void
+  onSelect: (a: Appointment) => void
 }) {
   const isCancelled = appt.status === "Cancelled"
   const s = isCancelled ? CANCELLED_STYLE : TYPE_STYLES[appt.type]
@@ -142,13 +147,13 @@ function DailyBlock({
         "absolute left-1 right-1 cursor-pointer overflow-hidden rounded-md border-l-4 px-2 py-1 transition-shadow hover:shadow-md",
         s.bg,
         s.border,
-        isCancelled && "cursor-default opacity-50"
+        isCancelled && "opacity-50"
       )}
       role="button"
       tabIndex={0}
       aria-label={`${appt.patientName} — ${appt.type}`}
-      onClick={() => { if (!isCancelled) onRequestCancel(appt) }}
-      onKeyDown={(e) => { if (e.key === "Enter" && !isCancelled) onRequestCancel(appt) }}
+      onClick={() => onSelect(appt)}
+      onKeyDown={(e) => { if (e.key === "Enter") onSelect(appt) }}
     >
       <p className={cn(
         "truncate text-sm font-medium leading-tight text-foreground",
@@ -175,11 +180,11 @@ function DailyBlock({
 function DailyView({
   dateKey,
   appts,
-  onRequestCancel,
+  onSelect,
 }: {
   dateKey: string
   appts: Appointment[]
-  onRequestCancel: (a: Appointment) => void
+  onSelect: (a: Appointment) => void
 }) {
   const dayAppts = appts.filter(a => a.date === dateKey)
   const gridH    = (END_H - START_H) * HOUR_PX
@@ -231,7 +236,7 @@ function DailyView({
             )}
 
             {dayAppts.map(a => (
-              <DailyBlock key={a.id} appt={a} onRequestCancel={onRequestCancel} />
+              <DailyBlock key={a.id} appt={a} onSelect={onSelect} />
             ))}
 
             {dayAppts.length === 0 && (
@@ -466,9 +471,250 @@ function CancelAppointmentDialog({ appt, onClose, onConfirmed }: CancelDialogPro
   )
 }
 
+// ── Appointment Detail Slide-Over ─────────────────────────────
+
+interface StaffOption { id: string; fullName: string; jobTitle?: string }
+
+function AppointmentDetailSlideOver({
+  appt,
+  onClose,
+  onEdit,
+  onCancel,
+  canEdit,
+}: {
+  appt: Appointment | null
+  onClose: () => void
+  onEdit: (a: Appointment) => void
+  onCancel: (a: Appointment) => void
+  canEdit: boolean
+}) {
+  if (!appt) return null
+  const s = appt.status === "Cancelled" ? CANCELLED_STYLE : TYPE_STYLES[appt.type]
+
+  return (
+    <>
+      <div className="fixed inset-0 z-40 bg-black/30" onClick={onClose} />
+      <div className="fixed inset-y-0 right-0 z-50 flex w-full max-w-sm flex-col border-l border-border bg-card shadow-xl">
+        <div className="flex items-center justify-between border-b border-border px-5 py-4">
+          <h2 className="text-base font-semibold text-foreground">Appointment Details</h2>
+          <button type="button" onClick={onClose} className="text-muted-foreground hover:text-foreground">
+            <X size={18} />
+          </button>
+        </div>
+
+        <div className="flex-1 overflow-y-auto p-5 space-y-5">
+          <div className="flex items-center gap-3">
+            <div className="flex size-10 items-center justify-center rounded-full bg-muted">
+              <User size={18} className="text-muted-foreground" />
+            </div>
+            <div>
+              <p className="font-medium text-foreground">{appt.patientName}</p>
+              <span className={cn("mt-0.5 inline-block rounded px-1.5 py-0.5 text-xs font-medium", s.badge)}>
+                {appt.status === "Cancelled" ? "Cancelled" : appt.type}
+              </span>
+            </div>
+          </div>
+
+          <dl className="grid grid-cols-[90px_1fr] gap-x-3 gap-y-3 text-sm">
+            <dt className="font-medium text-muted-foreground">Date</dt>
+            <dd className="text-foreground">{appt.date}</dd>
+
+            <dt className="font-medium text-muted-foreground">Time</dt>
+            <dd className="text-foreground">
+              {fmtMin(appt.startMin)} – {fmtMin(appt.startMin + appt.durationMin)}
+            </dd>
+
+            <dt className="font-medium text-muted-foreground">Clinician</dt>
+            <dd className="text-foreground">{appt.clinician}</dd>
+
+            <dt className="font-medium text-muted-foreground">Unit</dt>
+            <dd className="text-foreground">{appt.unit}</dd>
+
+            {appt.status === "Cancelled" && appt.cancellationReason && (
+              <>
+                <dt className="font-medium text-muted-foreground">Reason</dt>
+                <dd className="text-destructive">{appt.cancellationReason}</dd>
+              </>
+            )}
+          </dl>
+        </div>
+
+        {appt.status !== "Cancelled" && (
+          <div className="border-t border-border p-5 flex gap-3">
+            {canEdit && (
+              <Button
+                className="flex-1 gap-2 bg-primary text-primary-foreground hover:bg-primary/90"
+                onClick={() => onEdit(appt)}
+              >
+                <Pencil size={14} /> Edit
+              </Button>
+            )}
+            <Button
+              variant="outline"
+              className="flex-1 gap-2 border-destructive text-destructive hover:bg-destructive hover:text-destructive-foreground"
+              onClick={() => onCancel(appt)}
+            >
+              <CalendarX size={14} /> Cancel
+            </Button>
+          </div>
+        )}
+      </div>
+    </>
+  )
+}
+
+// ── Edit Appointment Dialog ────────────────────────────────────
+
+function EditAppointmentDialog({
+  appt,
+  staffList,
+  onClose,
+  onSaved,
+}: {
+  appt: Appointment | null
+  staffList: StaffOption[]
+  onClose: () => void
+  onSaved: (updated: Appointment) => void
+}) {
+  const [date,        setDate]        = useState("")
+  const [time,        setTime]        = useState("")
+  const [duration,    setDuration]    = useState(30)
+  const [type,        setType]        = useState<ApptType>("Consultation")
+  const [unit,        setUnit]        = useState("")
+  const [clinicianId, setClinicianId] = useState("")
+  const [saving,      setSaving]      = useState(false)
+
+  useEffect(() => {
+    if (!appt) return
+    setDate(appt.date)
+    setTime(fmtMin(appt.startMin))
+    setDuration(appt.durationMin)
+    setType(appt.type)
+    setUnit(appt.unit)
+    setClinicianId(appt.clinicianId)
+  }, [appt])
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    if (!appt || !date || !time || !clinicianId || !unit) {
+      toast.error("Please fill in all required fields.")
+      return
+    }
+    setSaving(true)
+    try {
+      const res = await fetch(`${API_BASE}/appointments/${appt.id}`, {
+        method:  "PUT",
+        headers: { "Content-Type": "application/json", ...authHeader() },
+        body: JSON.stringify({ date, time, durationMin: duration, type, clinicalUnit: unit, clinicianId }),
+      })
+      const json = await res.json() as { message?: string; conflict?: { patientName: string; dateTime: string } }
+      if (res.status === 409) {
+        toast.error(`Scheduling conflict: ${json.conflict?.patientName ?? "clinician unavailable"} at this time.`)
+        return
+      }
+      if (!res.ok) {
+        toast.error(json.message ?? "Failed to update appointment.")
+        return
+      }
+      const [h, m] = time.split(":").map(Number)
+      const startMin = (h ?? 9) * 60 + (m ?? 0)
+      onSaved({ ...appt, date, startMin, durationMin: duration, type, unit, clinicianId,
+        clinician: staffList.find(s => s.id === clinicianId)?.fullName ?? appt.clinician })
+      toast.success("Appointment updated.")
+      onClose()
+    } catch {
+      toast.error("Network error — please try again.")
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <Dialog open={!!appt} onOpenChange={v => { if (!v) onClose() }}>
+      <DialogContent className="max-w-md gap-0 overflow-hidden p-0">
+        <DialogHeader className="border-b border-border px-6 py-4">
+          <div className="flex items-center gap-3">
+            <div className="flex size-9 items-center justify-center rounded-full bg-primary/10">
+              <Pencil size={16} className="text-primary" />
+            </div>
+            <DialogTitle className="text-lg font-semibold text-foreground">Edit Appointment</DialogTitle>
+          </div>
+        </DialogHeader>
+
+        <form onSubmit={handleSubmit} noValidate>
+          <div className="space-y-4 p-6">
+            <div className="grid grid-cols-2 gap-3">
+              <div className="flex flex-col gap-1.5">
+                <label className="text-sm font-medium text-foreground">Date <span className="text-destructive">*</span></label>
+                <Input type="date" value={date} onChange={e => setDate(e.target.value)} />
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <label className="text-sm font-medium text-foreground">Time <span className="text-destructive">*</span></label>
+                <Input type="time" value={time} onChange={e => setTime(e.target.value)} step={900} />
+              </div>
+            </div>
+
+            <div className="flex flex-col gap-1.5">
+              <label className="text-sm font-medium text-foreground">Duration (minutes)</label>
+              <select
+                value={duration}
+                onChange={e => setDuration(Number(e.target.value))}
+                className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+              >
+                {[15, 30, 45, 60, 90, 120].map(d => <option key={d} value={d}>{d} min</option>)}
+              </select>
+            </div>
+
+            <div className="flex flex-col gap-1.5">
+              <label className="text-sm font-medium text-foreground">Appointment Type <span className="text-destructive">*</span></label>
+              <select
+                value={type}
+                onChange={e => setType(e.target.value as ApptType)}
+                className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+              >
+                {APPT_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+              </select>
+            </div>
+
+            <div className="flex flex-col gap-1.5">
+              <label className="text-sm font-medium text-foreground">Clinician <span className="text-destructive">*</span></label>
+              <select
+                value={clinicianId}
+                onChange={e => setClinicianId(e.target.value)}
+                className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+              >
+                <option value="">Select clinician</option>
+                {staffList.map(s => <option key={s.id} value={s.id}>{s.fullName}</option>)}
+              </select>
+            </div>
+
+            <div className="flex flex-col gap-1.5">
+              <label className="text-sm font-medium text-foreground">Clinical Unit <span className="text-destructive">*</span></label>
+              <Input
+                placeholder="e.g. Paediatrics, Cardiology..."
+                value={unit}
+                onChange={e => setUnit(e.target.value)}
+              />
+            </div>
+          </div>
+
+          <div className="flex items-center justify-between border-t border-border bg-muted/20 px-6 py-4">
+            <Button type="button" variant="outline" onClick={onClose}>Cancel</Button>
+            <Button type="submit" className="gap-2 bg-primary text-primary-foreground" disabled={saving}>
+              {saving ? <Loader2 size={14} className="animate-spin" /> : <Pencil size={14} />}
+              {saving ? "Saving..." : "Save Changes"}
+            </Button>
+          </div>
+        </form>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
 // ── Main Page ─────────────────────────────────────────────────
 
 export function AppointmentsPage() {
+  const { hasPermission } = usePermissions()
   const [searchParams, setSearchParams] = useSearchParams()
   const view = searchParams.get("view") === "week" ? "week" : "day"
 
@@ -478,7 +724,10 @@ export function AppointmentsPage() {
   const [filterClin, setFilterClin] = useState("")
   const [filterUnit, setFilterUnit] = useState("")
   const [filterType, setFilterType] = useState("")
+  const [detailAppt, setDetailAppt] = useState<Appointment | null>(null)
   const [cancelAppt, setCancelAppt] = useState<Appointment | null>(null)
+  const [editAppt,   setEditAppt]   = useState<Appointment | null>(null)
+  const [staffList,  setStaffList]  = useState<StaffOption[]>([])
 
   const currentDate = useMemo(() => addDays(NOW, offset), [offset])
   const weekStart   = useMemo(() => getMonday(currentDate), [currentDate])
@@ -501,6 +750,16 @@ export function AppointmentsPage() {
   }, [view, currentDate, weekStart])
 
   useEffect(() => { fetchAppts() }, [fetchAppts])
+
+  // Load staff list for the edit clinician dropdown
+  useEffect(() => {
+    fetch(`${API_BASE}/staff`, { headers: authHeader() })
+      .then(r => r.ok ? r.json() : null)
+      .then((d: { staff?: StaffOption[] } | null) => {
+        if (d?.staff) setStaffList(d.staff)
+      })
+      .catch(() => undefined)
+  }, [])
 
   // Derive unique clinician names from loaded data for the filter dropdown
   const uniqueClinicians = useMemo(
@@ -532,6 +791,17 @@ export function AppointmentsPage() {
   function handleCancelled(id: string) {
     setAppts(prev => prev.map(a => a.id === id ? { ...a, status: "Cancelled" as const } : a))
     setCancelAppt(null)
+    setDetailAppt(null)
+  }
+
+  function handleEdited(updated: Appointment) {
+    setAppts(prev => prev.map(a => a.id === updated.id ? updated : a))
+    setDetailAppt(null)
+    setEditAppt(null)
+  }
+
+  function openDetail(appt: Appointment) {
+    setDetailAppt(appt)
   }
 
   const dateLabel = view === "week"
@@ -640,7 +910,7 @@ export function AppointmentsPage() {
         <DailyView
           dateKey={toDateStr(currentDate)}
           appts={filtered}
-          onRequestCancel={setCancelAppt}
+          onSelect={openDetail}
         />
       ) : (
         <WeeklyView
@@ -648,6 +918,21 @@ export function AppointmentsPage() {
           appts={filtered}
         />
       )}
+
+      <AppointmentDetailSlideOver
+        appt={detailAppt}
+        canEdit={hasPermission("appointment:update")}
+        onClose={() => setDetailAppt(null)}
+        onEdit={(a) => { setDetailAppt(null); setEditAppt(a) }}
+        onCancel={(a) => { setDetailAppt(null); setCancelAppt(a) }}
+      />
+
+      <EditAppointmentDialog
+        appt={editAppt}
+        staffList={staffList}
+        onClose={() => setEditAppt(null)}
+        onSaved={handleEdited}
+      />
 
       <CancelAppointmentDialog
         appt={cancelAppt}

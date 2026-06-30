@@ -155,7 +155,7 @@ export class HisDatabaseStack extends cdk.Stack {
       serviceToken: migrationProvider.serviceToken,
       resourceType: 'Custom::HisDatabaseMigrations',
       properties: {
-        SchemaVersion: 'V16',
+        SchemaVersion: 'V17',
       },
     });
 
