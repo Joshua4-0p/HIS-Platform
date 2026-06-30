@@ -258,11 +258,6 @@ const MIGRATIONS: Migration[] = [
         ADD COLUMN IF NOT EXISTS deactivated_at TIMESTAMPTZ,
         ADD COLUMN IF NOT EXISTS deactivated_by UUID;
       CREATE INDEX IF NOT EXISTS patients_is_active_idx ON patients (hospital_id, is_active);
-      ALTER TABLE lab_results
-        ADD COLUMN IF NOT EXISTS original_result_id UUID REFERENCES lab_results(id),
-        ADD COLUMN IF NOT EXISTS superseded         BOOLEAN NOT NULL DEFAULT false;
-      CREATE INDEX IF NOT EXISTS lab_results_original_idx   ON lab_results (original_result_id) WHERE original_result_id IS NOT NULL;
-      CREATE INDEX IF NOT EXISTS lab_results_superseded_idx ON lab_results (hospital_id, superseded);
     `,
   },
   {
@@ -368,7 +363,7 @@ const MIGRATIONS: Migration[] = [
         test_name     VARCHAR(100) NOT NULL,
         urgency       VARCHAR(10)  NOT NULL DEFAULT 'routine' CHECK (urgency IN ('routine', 'urgent')),
         notes         TEXT,
-        status        VARCHAR(10)  NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'completed')),
+        status        VARCHAR(12)  NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'in_progress', 'completed', 'cancelled')),
         requested_by  UUID         NOT NULL,
         created_at    TIMESTAMPTZ  NOT NULL DEFAULT NOW()
       );
@@ -376,25 +371,25 @@ const MIGRATIONS: Migration[] = [
       CREATE INDEX lab_requests_patient_id_idx      ON lab_test_requests (patient_id);
 
       CREATE TABLE lab_results (
-        id                    UUID          PRIMARY KEY DEFAULT gen_random_uuid(),
-        request_id            UUID          NOT NULL REFERENCES lab_test_requests(id),
-        hospital_id           UUID          NOT NULL,
-        patient_id            UUID          NOT NULL,
-        test_name             VARCHAR(100)  NOT NULL,
-        result_value          NUMERIC       NOT NULL,
-        unit                  VARCHAR(30)   NOT NULL,
-        reference_range_min   NUMERIC,
-        reference_range_max   NUMERIC,
-        critical_range_min    NUMERIC,
-        critical_range_max    NUMERIC,
-        result_status         VARCHAR(10)   NOT NULL CHECK (result_status IN ('normal', 'abnormal', 'critical')),
-        date_time_tested      TIMESTAMPTZ   NOT NULL,
-        lab_technician_id     UUID          NOT NULL,
-        created_at            TIMESTAMPTZ   NOT NULL DEFAULT NOW()
+        id                 UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
+        request_id         UUID         NOT NULL REFERENCES lab_test_requests(id),
+        hospital_id        UUID         NOT NULL,
+        patient_id         UUID         NOT NULL,
+        test_name          VARCHAR(100) NOT NULL,
+        findings           TEXT         NOT NULL,
+        reference_range    TEXT,
+        interpretation     TEXT,
+        additional_notes   TEXT,
+        recorded_by        UUID         NOT NULL,
+        original_result_id UUID         REFERENCES lab_results(id),
+        superseded         BOOLEAN      NOT NULL DEFAULT false,
+        created_at         TIMESTAMPTZ  NOT NULL DEFAULT NOW()
       );
       CREATE INDEX lab_results_hospital_patient_idx ON lab_results (hospital_id, patient_id);
       CREATE INDEX lab_results_request_id_idx       ON lab_results (request_id);
-      CREATE INDEX lab_results_status_idx           ON lab_results (hospital_id, result_status);
+      CREATE INDEX lab_results_original_idx         ON lab_results (original_result_id) WHERE original_result_id IS NOT NULL;
+      CREATE INDEX lab_results_superseded_idx       ON lab_results (hospital_id, superseded);
+      CREATE INDEX lab_results_active_idx           ON lab_results (hospital_id, request_id) WHERE superseded = false;
     `,
   },
   {
@@ -567,7 +562,7 @@ const MIGRATIONS: Migration[] = [
       SELECT
         lr.hospital_id,
         DATE_TRUNC('month', lr.created_at AT TIME ZONE 'Africa/Lagos') AS month,
-        ROUND(AVG(EXTRACT(EPOCH FROM (lr.date_time_tested - ltr.created_at)) / 3600)::NUMERIC, 2) AS avg_turnaround_hours,
+        ROUND(AVG(EXTRACT(EPOCH FROM (lr.created_at - ltr.created_at)) / 3600)::NUMERIC, 2) AS avg_turnaround_hours,
         COUNT(*) AS result_count
       FROM lab_results lr
       JOIN lab_test_requests ltr ON lr.request_id = ltr.id
@@ -653,60 +648,25 @@ const MIGRATIONS: Migration[] = [
   },
   {
     version: 'V16',
-    name: 'V16__seed_default_role_permissions.sql',
+    name: 'V16__seed_lab_reference_ranges.sql',
     sql: `
-      INSERT INTO role_permissions (role_id, permission_id)
-      SELECT r.id, p.id
-      FROM roles r
-      CROSS JOIN permissions p
-      WHERE r.name = 'Hospital Admin' AND r.hospital_id IS NULL
-      ON CONFLICT DO NOTHING;
+      CREATE TABLE IF NOT EXISTS lab_reference_ranges (
+        id           UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
+        test_name    VARCHAR(100) NOT NULL UNIQUE,
+        unit         VARCHAR(30)  NOT NULL,
+        normal_min   NUMERIC      NOT NULL,
+        normal_max   NUMERIC      NOT NULL,
+        critical_min NUMERIC      NOT NULL,
+        critical_max NUMERIC      NOT NULL
+      );
 
-      INSERT INTO role_permissions (role_id, permission_id)
-      SELECT r.id, p.id
-      FROM roles r
-      JOIN permissions p ON p.name = ANY(ARRAY[
-        'patient:read','patient:write','patient:amend','diagnosis:write',
-        'lab_result:read','lab_result:write','prescription:write',
-        'appointment:write','transfer:request'
-      ])
-      WHERE r.name = 'Doctor' AND r.hospital_id IS NULL
-      ON CONFLICT DO NOTHING;
-
-      INSERT INTO role_permissions (role_id, permission_id)
-      SELECT r.id, p.id
-      FROM roles r
-      JOIN permissions p ON p.name = ANY(ARRAY[
-        'patient:read','patient:write','appointment:write','lab_result:read'
-      ])
-      WHERE r.name = 'Nurse' AND r.hospital_id IS NULL
-      ON CONFLICT DO NOTHING;
-
-      INSERT INTO role_permissions (role_id, permission_id)
-      SELECT r.id, p.id
-      FROM roles r
-      JOIN permissions p ON p.name = ANY(ARRAY[
-        'patient:read','lab_result:read','lab_result:write'
-      ])
-      WHERE r.name = 'Laboratory Technician' AND r.hospital_id IS NULL
-      ON CONFLICT DO NOTHING;
-
-      INSERT INTO role_permissions (role_id, permission_id)
-      SELECT r.id, p.id
-      FROM roles r
-      JOIN permissions p ON p.name = ANY(ARRAY[
-        'patient:read','patient:write','appointment:write'
-      ])
-      WHERE r.name = 'Receptionist' AND r.hospital_id IS NULL
-      ON CONFLICT DO NOTHING;
-
-      INSERT INTO role_permissions (role_id, permission_id)
-      SELECT r.id, p.id
-      FROM roles r
-      JOIN permissions p ON p.name = ANY(ARRAY[
-        'patient:read','patient:write','analytics:view'
-      ])
-      WHERE r.name = 'Data Clerk' AND r.hospital_id IS NULL
+      INSERT INTO lab_reference_ranges (test_name, unit, normal_min, normal_max, critical_min, critical_max) VALUES
+        ('Full Blood Count',      'g/dL',    11.0,  16.0,  7.0,  20.0),
+        ('Malaria RDT',           'index',    0.0,   1.0,  0.0,   3.0),
+        ('Fasting Blood Glucose', 'mmol/L',   3.9,   6.1,  2.5,  13.9),
+        ('HbA1c',                 '%',        4.0,   5.6,  3.0,  10.0),
+        ('Creatinine',            'mg/dL',    0.6,   1.2,  0.1,   4.0),
+        ('Liver Function Test',   'U/L',      7.0,  56.0,  0.0, 200.0)
       ON CONFLICT DO NOTHING;
     `,
   },
