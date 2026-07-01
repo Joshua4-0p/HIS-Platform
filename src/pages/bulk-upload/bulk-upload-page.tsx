@@ -5,11 +5,13 @@ import {
   Download,
   FileText,
   Info,
+  Loader2,
   Upload,
   X,
 } from "lucide-react"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
+import { API_BASE } from "@/lib/api"
 import { cn } from "@/lib/utils"
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -20,22 +22,12 @@ function formatBytes(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
 }
 
-function downloadTemplate() {
-  const header =
-    "full_name,date_of_birth,sex,phone,address,region,emergency_contact_name,emergency_contact_phone,emergency_contact_relationship\n"
-  const blob = new Blob([header], { type: "text/csv" })
-  const url = URL.createObjectURL(blob)
-  const a = document.createElement("a")
-  a.href = url
-  a.download = "his_patient_upload_template.csv"
-  a.click()
-  URL.revokeObjectURL(url)
-}
-
 // ── Page ─────────────────────────────────────────────────────────────────────
 
 export function BulkUploadPage() {
-  const [file, setFile] = useState<File | null>(null)
+  const [file, setFile]           = useState<File | null>(null)
+  const [downloading, setDownloading] = useState(false)
+  const [uploading, setUploading]     = useState(false)
   const navigate = useNavigate()
 
   const onDrop = useCallback((acceptedFiles: File[]) => {
@@ -57,9 +49,67 @@ export function BulkUploadPage() {
     },
   })
 
-  function handleUpload() {
+  async function handleDownloadTemplate() {
+    setDownloading(true)
+    try {
+      const token = localStorage.getItem("his_access_token")
+      const res = await fetch(`${API_BASE}/bulk-upload/template`, {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      if (!res.ok) throw new Error(`Status ${res.status}`)
+      const json = await res.json() as { templateUrl: string }
+
+      // Redirect browser to the pre-signed S3 GET URL — triggers download
+      const a = document.createElement("a")
+      a.href = json.templateUrl
+      a.download = "his-patient-template.csv"
+      a.click()
+    } catch {
+      toast.error("Download failed", { description: "Could not fetch the CSV template. Try again." })
+    } finally {
+      setDownloading(false)
+    }
+  }
+
+  async function handleUpload() {
     if (!file) return
-    navigate("/bulk-upload/status/job-001?state=processing")
+    setUploading(true)
+    try {
+      const token = localStorage.getItem("his_access_token")
+
+      // 1. Get a pre-signed PUT URL + job ID from the API
+      const initRes = await fetch(`${API_BASE}/bulk-upload/presigned-url`, {
+        method: "POST",
+        headers: {
+          "Content-Type":  "application/json",
+          Authorization:   `Bearer ${token}`,
+        },
+      })
+      if (!initRes.ok) {
+        const err = await initRes.json().catch(() => ({})) as { error?: string }
+        toast.error("Upload failed", { description: err.error ?? `Server error ${initRes.status}` })
+        return
+      }
+      const { jobId, uploadUrl } = await initRes.json() as { jobId: string; uploadUrl: string }
+
+      // 2. PUT the file directly to S3 using the pre-signed URL (bypasses 6 MB Lambda limit)
+      const s3Res = await fetch(uploadUrl, {
+        method:  "PUT",
+        body:    file,
+        headers: { "Content-Type": "text/csv" },
+      })
+      if (!s3Res.ok) {
+        toast.error("S3 upload failed", { description: `Upload returned status ${s3Res.status}.` })
+        return
+      }
+
+      // 3. Navigate to the status page — ingestion Lambda will have been triggered by S3
+      navigate(`/bulk-upload/status/${jobId}`)
+    } catch {
+      toast.error("Upload error", { description: "An unexpected error occurred. Please try again." })
+    } finally {
+      setUploading(false)
+    }
   }
 
   return (
@@ -82,10 +132,16 @@ export function BulkUploadPage() {
         </p>
         <Button
           variant="outline"
-          onClick={downloadTemplate}
+          onClick={handleDownloadTemplate}
+          disabled={downloading}
           className="mt-6 gap-2 border-primary text-primary hover:bg-primary/5"
         >
-          <Download size={16} /> Download CSV Template
+          {downloading ? (
+            <Loader2 size={16} className="animate-spin" />
+          ) : (
+            <Download size={16} />
+          )}
+          {downloading ? "Fetching template…" : "Download CSV Template"}
         </Button>
       </div>
 
@@ -108,7 +164,8 @@ export function BulkUploadPage() {
             <button
               type="button"
               onClick={() => setFile(null)}
-              className="inline-flex items-center gap-1 text-xs text-destructive hover:underline"
+              disabled={uploading}
+              className="inline-flex items-center gap-1 text-xs text-destructive hover:underline disabled:opacity-50"
             >
               <X size={12} /> Remove
             </button>
@@ -145,8 +202,17 @@ export function BulkUploadPage() {
         )}
 
         {/* Upload button */}
-        <Button className="mt-6 w-full gap-2" disabled={!file} onClick={handleUpload}>
-          <Upload size={16} /> Upload &amp; Process
+        <Button
+          className="mt-6 w-full gap-2"
+          disabled={!file || uploading}
+          onClick={handleUpload}
+        >
+          {uploading ? (
+            <Loader2 size={16} className="animate-spin" />
+          ) : (
+            <Upload size={16} />
+          )}
+          {uploading ? "Uploading…" : "Upload & Process"}
         </Button>
       </div>
     </div>

@@ -8,6 +8,7 @@ import * as iam from 'aws-cdk-lib/aws-iam';
 import * as lambda from 'aws-cdk-lib/aws-lambda';
 import * as nodejs from 'aws-cdk-lib/aws-lambda-nodejs';
 import * as s3 from 'aws-cdk-lib/aws-s3';
+import * as lambdaEventSources from 'aws-cdk-lib/aws-lambda-event-sources';
 import * as sns from 'aws-cdk-lib/aws-sns';
 import * as subs from 'aws-cdk-lib/aws-sns-subscriptions';
 import * as sqs from 'aws-cdk-lib/aws-sqs';
@@ -705,7 +706,160 @@ export class HisBackendStack extends cdk.Stack {
     }
 
     // =========================================================================
-    // 12. Stack Outputs
+    // 12. Phase 12: bulk-upload-api Lambda (HTTP-triggered, VPC-bound, 3 routes)
+    // Pre-signed S3 URL for CSV upload; job tracking; status polling.
+    // REQ-F-044 to REQ-F-046: upload URL, job creation, job status query.
+    // =========================================================================
+    const bulkUploadApiRole = new iam.Role(this, 'BulkUploadApiRole', {
+      roleName:  'his-bulk-upload-api-role',
+      assumedBy: new iam.ServicePrincipal('lambda.amazonaws.com'),
+      managedPolicies: [
+        iam.ManagedPolicy.fromAwsManagedPolicyName('service-role/AWSLambdaVPCAccessExecutionRole'),
+      ],
+    });
+
+    // IAM DB auth - no Secrets Manager at runtime (REQ-NF-009)
+    bulkUploadApiRole.addToPolicy(new iam.PolicyStatement({
+      effect:    iam.Effect.ALLOW,
+      actions:   ['rds-db:connect'],
+      resources: [`arn:aws:rds-db:${this.region}:${account}:dbuser:*/his_app`],
+    }));
+
+    // S3 pre-signed URL generation for template download and CSV PUT upload
+    bulkUploadApiRole.addToPolicy(new iam.PolicyStatement({
+      effect:    iam.Effect.ALLOW,
+      actions:   ['s3:GetObject', 's3:PutObject'],
+      resources: [`${this.csvUploadsBucket.bucketArn}/*`],
+    }));
+
+    const bulkUploadApiFn = new nodejs.NodejsFunction(this, 'BulkUploadApiFn', {
+      functionName: 'his-bulk-upload-api',
+      entry:        path.join(__dirname, '../../lambda/bulk-upload-api/handler.ts'),
+      runtime:      lambda.Runtime.NODEJS_20_X,
+      handler:      'handler',
+      role:         bulkUploadApiRole,
+      timeout:      cdk.Duration.seconds(30),
+      memorySize:   512,
+      // reservedConcurrentExecutions: 200 -- REQ-NF-021; raise Service Quotas for production
+      vpc:          props.vpcStack.vpc,
+      vpcSubnets:   { subnetType: ec2.SubnetType.PRIVATE_ISOLATED },
+      securityGroups: [props.vpcStack.lambdaSg],
+      environment: {
+        RDS_HOSTNAME:       props.databaseStack.rdsInstance.dbInstanceEndpointAddress,
+        RDS_PORT:           props.databaseStack.rdsInstance.dbInstanceEndpointPort,
+        RDS_DB_NAME:        'hisdb',
+        CSV_UPLOADS_BUCKET: this.csvUploadsBucket.bucketName,
+      },
+      bundling: {
+        minify:          true,
+        sourceMap:       false,
+        externalModules: ['@aws-sdk/*'],
+      },
+    });
+
+    const bulkUploadApiIntegration = new apigw2Integrations.HttpLambdaIntegration(
+      'BulkUploadApiIntegration',
+      bulkUploadApiFn,
+    );
+
+    for (const { routePath, methods } of [
+      { routePath: '/bulk-upload/template',       methods: [apigw2.HttpMethod.GET] },
+      { routePath: '/bulk-upload/presigned-url',  methods: [apigw2.HttpMethod.POST] },
+      { routePath: '/bulk-upload/status/{jobId}', methods: [apigw2.HttpMethod.GET] },
+    ]) {
+      this.httpApi.addRoutes({
+        path:        routePath,
+        methods,
+        integration: bulkUploadApiIntegration,
+        authorizer:  this.cognitoAuthorizer,
+      });
+    }
+
+    // =========================================================================
+    // 13. Phase 12: bulk-ingestion Lambda (S3-triggered, 15 min, DLQ)
+    // Full ETL pipeline: validate structure, pg_trgm dedup (>0.85), batch insert,
+    // archive to csv-archive, SNS completion notification.
+    // REQ-F-044 to REQ-F-048, REQ-NF-006 (500 records/min at 1024 MB).
+    // DLQ: his-bulk-ingestion-dlq receives failed invocations.
+    // =========================================================================
+    const bulkIngestionRole = new iam.Role(this, 'BulkIngestionRole', {
+      roleName:  'his-bulk-ingestion-role',
+      assumedBy: new iam.ServicePrincipal('lambda.amazonaws.com'),
+      managedPolicies: [
+        iam.ManagedPolicy.fromAwsManagedPolicyName('service-role/AWSLambdaVPCAccessExecutionRole'),
+      ],
+    });
+
+    // IAM DB auth (REQ-NF-009)
+    bulkIngestionRole.addToPolicy(new iam.PolicyStatement({
+      effect:    iam.Effect.ALLOW,
+      actions:   ['rds-db:connect'],
+      resources: [`arn:aws:rds-db:${this.region}:${account}:dbuser:*/his_app`],
+    }));
+
+    // Read uploaded CSV from csv-uploads bucket
+    bulkIngestionRole.addToPolicy(new iam.PolicyStatement({
+      effect:    iam.Effect.ALLOW,
+      actions:   ['s3:GetObject'],
+      resources: [`${this.csvUploadsBucket.bucketArn}/uploads/*`],
+    }));
+
+    // Write processed CSV to csv-archive bucket (REQ-F-048)
+    bulkIngestionRole.addToPolicy(new iam.PolicyStatement({
+      effect:    iam.Effect.ALLOW,
+      actions:   ['s3:PutObject'],
+      resources: [`${this.csvArchiveBucket.bucketArn}/*`],
+    }));
+
+    // SNS publish for ETL completion notification (REQ-F-047)
+    bulkIngestionRole.addToPolicy(new iam.PolicyStatement({
+      effect:    iam.Effect.ALLOW,
+      actions:   ['sns:Publish'],
+      resources: [this.etlCompletionsTopic.topicArn],
+    }));
+
+    // SQS SendMessage for DLQ on failed async invocations
+    bulkIngestionRole.addToPolicy(new iam.PolicyStatement({
+      effect:    iam.Effect.ALLOW,
+      actions:   ['sqs:SendMessage'],
+      resources: [this.bulkIngestionDlq.queueArn],
+    }));
+
+    const bulkIngestionFn = new nodejs.NodejsFunction(this, 'BulkIngestionFn', {
+      functionName:   'his-bulk-ingestion',
+      entry:          path.join(__dirname, '../../lambda/bulk-ingestion/handler.ts'),
+      runtime:        lambda.Runtime.NODEJS_20_X,
+      handler:        'handler',
+      role:           bulkIngestionRole,
+      timeout:        cdk.Duration.minutes(15),
+      memorySize:     1024,
+      deadLetterQueue: this.bulkIngestionDlq,
+      vpc:            props.vpcStack.vpc,
+      vpcSubnets:     { subnetType: ec2.SubnetType.PRIVATE_ISOLATED },
+      securityGroups: [props.vpcStack.lambdaSg],
+      environment: {
+        RDS_HOSTNAME:             props.databaseStack.rdsInstance.dbInstanceEndpointAddress,
+        RDS_PORT:                 props.databaseStack.rdsInstance.dbInstanceEndpointPort,
+        RDS_DB_NAME:              'hisdb',
+        CSV_UPLOADS_BUCKET:       this.csvUploadsBucket.bucketName,
+        CSV_ARCHIVE_BUCKET:       this.csvArchiveBucket.bucketName,
+        ETL_COMPLETIONS_TOPIC_ARN: this.etlCompletionsTopic.topicArn,
+      },
+      bundling: {
+        minify:          true,
+        sourceMap:       false,
+        externalModules: ['@aws-sdk/*'],
+      },
+    });
+
+    // S3 event source: trigger on object PUT under uploads/ prefix (REQ-F-044)
+    bulkIngestionFn.addEventSource(new lambdaEventSources.S3EventSource(this.csvUploadsBucket, {
+      events:  [s3.EventType.OBJECT_CREATED],
+      filters: [{ prefix: 'uploads/' }],
+    }));
+
+    // =========================================================================
+    // 14. Stack Outputs
     // =========================================================================
     new cdk.CfnOutput(this, 'ApiGatewayUrl', {
       value:      this.httpApi.apiEndpoint,
