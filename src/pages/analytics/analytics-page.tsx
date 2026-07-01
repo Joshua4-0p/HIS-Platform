@@ -102,29 +102,47 @@ type ChartType = "bar" | "line" | "pie"
 // ── PNG export ────────────────────────────────────────────────────────────────
 
 function exportChartAsPng(ref: { current: HTMLDivElement | null }, filename: string) {
-  const svg = ref.current?.querySelector("svg")
+  const container = ref.current
+  if (!container) return
+  const svg = container.querySelector("svg")
   if (!svg) return
-  const { width, height } = svg.getBoundingClientRect()
-  const svgData = new XMLSerializer().serializeToString(svg)
-  const url = URL.createObjectURL(
-    new Blob([svgData], { type: "image/svg+xml;charset=utf-8" }),
-  )
+
+  const { width, height } = container.getBoundingClientRect()
+  if (!width || !height) return
+
+  const docStyle = getComputedStyle(document.documentElement)
+  const mutedFg  = docStyle.getPropertyValue("--muted-foreground").trim()
+  const border   = docStyle.getPropertyValue("--border").trim()
+
+  const clone = svg.cloneNode(true) as SVGSVGElement
+  clone.setAttribute("width",  String(Math.round(width)))
+  clone.setAttribute("height", String(Math.round(height)))
+  clone.setAttribute("xmlns",  "http://www.w3.org/2000/svg")
+
+  const styleEl = document.createElementNS("http://www.w3.org/2000/svg", "style")
+  styleEl.textContent = `:root{--muted-foreground:${mutedFg};--border:${border}}`
+  clone.insertBefore(styleEl, clone.firstChild)
+
+  const svgData = new XMLSerializer().serializeToString(clone)
+  const url     = URL.createObjectURL(new Blob([svgData], { type: "image/svg+xml;charset=utf-8" }))
+
   const img = new Image()
   img.onload = () => {
     const canvas = document.createElement("canvas")
-    canvas.width = width
-    canvas.height = height
+    canvas.width  = Math.round(width)
+    canvas.height = Math.round(height)
     const ctx = canvas.getContext("2d")
     if (!ctx) { URL.revokeObjectURL(url); return }
     ctx.fillStyle = "#ffffff"
-    ctx.fillRect(0, 0, width, height)
-    ctx.drawImage(img, 0, 0)
+    ctx.fillRect(0, 0, canvas.width, canvas.height)
+    ctx.drawImage(img, 0, 0, canvas.width, canvas.height)
     URL.revokeObjectURL(url)
-    const a = document.createElement("a")
+    const a    = document.createElement("a")
     a.download = filename
-    a.href = canvas.toDataURL("image/png")
+    a.href     = canvas.toDataURL("image/png")
     a.click()
   }
+  img.onerror = () => URL.revokeObjectURL(url)
   img.src = url
 }
 

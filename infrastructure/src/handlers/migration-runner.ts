@@ -650,6 +650,14 @@ const MIGRATIONS: Migration[] = [
     version: 'V16',
     name: 'V16__seed_lab_reference_ranges.sql',
     sql: `
+      ALTER TABLE lab_results
+        ADD COLUMN IF NOT EXISTS superseded         BOOLEAN NOT NULL DEFAULT false,
+        ADD COLUMN IF NOT EXISTS original_result_id UUID    REFERENCES lab_results(id),
+        ADD COLUMN IF NOT EXISTS correction_reason  TEXT;
+
+      CREATE INDEX IF NOT EXISTS lab_results_active_idx ON lab_results (hospital_id, request_id)
+        WHERE superseded = false;
+
       CREATE TABLE IF NOT EXISTS lab_reference_ranges (
         id           UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
         test_name    VARCHAR(100) NOT NULL UNIQUE,
@@ -668,6 +676,14 @@ const MIGRATIONS: Migration[] = [
         ('Creatinine',            'mg/dL',    0.6,   1.2,  0.1,   4.0),
         ('Liver Function Test',   'U/L',      7.0,  56.0,  0.0, 200.0)
       ON CONFLICT DO NOTHING;
+    `,
+  },
+  {
+    version: 'V17',
+    name: 'V17__grant_delete_on_roles_tables.sql',
+    sql: `
+      GRANT DELETE ON role_permissions TO his_app;
+      GRANT DELETE ON roles TO his_app;
     `,
   },
 ];

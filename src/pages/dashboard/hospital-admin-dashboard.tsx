@@ -70,27 +70,51 @@ function ChartTooltipBox({ active, payload, label }: { active?: boolean; payload
 // ── PNG export helper ─────────────────────────────────────────────────────────
 
 function exportChartAsPng(ref: { current: HTMLDivElement | null }, filename: string) {
-  const svg = ref.current?.querySelector("svg")
+  const container = ref.current
+  if (!container) return
+  const svg = container.querySelector("svg")
   if (!svg) return
-  const { width, height } = svg.getBoundingClientRect()
-  const svgData = new XMLSerializer().serializeToString(svg)
-  const url = URL.createObjectURL(new Blob([svgData], { type: "image/svg+xml;charset=utf-8" }))
+
+  // Use container dimensions — SVG reports 0 when sized 100%/100%
+  const { width, height } = container.getBoundingClientRect()
+  if (!width || !height) return
+
+  // Resolve CSS custom properties now, before the SVG loses document context
+  const docStyle = getComputedStyle(document.documentElement)
+  const mutedFg  = docStyle.getPropertyValue("--muted-foreground").trim()
+  const border   = docStyle.getPropertyValue("--border").trim()
+
+  // Clone with explicit pixel dimensions so browsers render it at the right size
+  const clone = svg.cloneNode(true) as SVGSVGElement
+  clone.setAttribute("width",  String(Math.round(width)))
+  clone.setAttribute("height", String(Math.round(height)))
+  clone.setAttribute("xmlns",  "http://www.w3.org/2000/svg")
+
+  // Inject resolved variable values so var() refs work in the standalone SVG blob
+  const styleEl = document.createElementNS("http://www.w3.org/2000/svg", "style")
+  styleEl.textContent = `:root{--muted-foreground:${mutedFg};--border:${border}}`
+  clone.insertBefore(styleEl, clone.firstChild)
+
+  const svgData = new XMLSerializer().serializeToString(clone)
+  const url     = URL.createObjectURL(new Blob([svgData], { type: "image/svg+xml;charset=utf-8" }))
+
   const img = new Image()
   img.onload = () => {
     const canvas = document.createElement("canvas")
-    canvas.width = width
-    canvas.height = height
+    canvas.width  = Math.round(width)
+    canvas.height = Math.round(height)
     const ctx = canvas.getContext("2d")
     if (!ctx) { URL.revokeObjectURL(url); return }
     ctx.fillStyle = "#ffffff"
-    ctx.fillRect(0, 0, width, height)
-    ctx.drawImage(img, 0, 0)
+    ctx.fillRect(0, 0, canvas.width, canvas.height)
+    ctx.drawImage(img, 0, 0, canvas.width, canvas.height)
     URL.revokeObjectURL(url)
-    const a = document.createElement("a")
+    const a    = document.createElement("a")
     a.download = filename
-    a.href = canvas.toDataURL("image/png")
+    a.href     = canvas.toDataURL("image/png")
     a.click()
   }
+  img.onerror = () => URL.revokeObjectURL(url)
   img.src = url
 }
 
@@ -202,10 +226,10 @@ export function HospitalAdminDashboard() {
                 layout="vertical"
                 margin={{ top: 0, right: 16, left: 8, bottom: 0 }}
               >
-                <CartesianGrid horizontal={false} stroke="hsl(var(--border))" strokeDasharray="3 3" />
+                <CartesianGrid horizontal={false} stroke="var(--border)" strokeDasharray="3 3" />
                 <XAxis
                   type="number"
-                  tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }}
+                  tick={{ fontSize: 11, fill: "var(--muted-foreground)" }}
                   tickLine={false}
                   axisLine={false}
                 />
@@ -213,7 +237,7 @@ export function HospitalAdminDashboard() {
                   type="category"
                   dataKey="name"
                   width={96}
-                  tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }}
+                  tick={{ fontSize: 11, fill: "var(--muted-foreground)" }}
                   tickLine={false}
                   axisLine={false}
                 />
@@ -244,20 +268,20 @@ export function HospitalAdminDashboard() {
           <div ref={trendRef}>
             <ResponsiveContainer width="100%" height={240}>
               <LineChart data={TREND} margin={{ top: 0, right: 16, left: 0, bottom: 0 }}>
-                <CartesianGrid stroke="hsl(var(--border))" strokeDasharray="3 3" />
+                <CartesianGrid stroke="var(--border)" strokeDasharray="3 3" />
                 <XAxis
                   dataKey="month"
-                  tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }}
+                  tick={{ fontSize: 11, fill: "var(--muted-foreground)" }}
                   tickLine={false}
                   axisLine={false}
                 />
                 <YAxis
-                  tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }}
+                  tick={{ fontSize: 11, fill: "var(--muted-foreground)" }}
                   tickLine={false}
                   axisLine={false}
                   width={40}
                 />
-                <Tooltip content={<ChartTooltipBox />} cursor={{ stroke: "hsl(var(--border))" }} />
+                <Tooltip content={<ChartTooltipBox />} cursor={{ stroke: "var(--border)" }} />
                 <Legend
                   formatter={(v) => <span className="text-xs font-medium text-foreground">{v}</span>}
                   wrapperStyle={{ paddingTop: 12 }}

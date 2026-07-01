@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { Link } from "react-router-dom"
 import {
   Activity,
@@ -13,6 +13,7 @@ import {
   XCircle,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { API_BASE } from "@/lib/api"
 
 const PAGE_SIZE = 5
 
@@ -23,6 +24,7 @@ type EncStatus = "Completed" | "In Progress" | "Missed"
 interface EncounterRow {
   id: string
   patientId: string
+  patientNumber: string
   patientName: string
   patientInitials: string
   date: string
@@ -33,57 +35,46 @@ interface EncounterRow {
   status: EncStatus
 }
 
-// ── Mock data ─────────────────────────────────────────────────
+interface Stats {
+  total: number
+  inProgress: number
+  completed: number
+  missed: number
+}
 
-const ALL_ENCOUNTERS: EncounterRow[] = [
-  { id: "enc-001", patientId: "HIS-001234", patientName: "Ayuk Emmanuel",    patientInitials: "AE", date: "Today, 10:30", complaint: "Stable blood pressure, mild fatigue",             clinician: "Dr. Ekane Paul",   unit: "Cardiology",       diagnoses: 2, status: "In Progress" },
-  { id: "enc-002", patientId: "HIS-001235", patientName: "Nkeng Bernadette", patientInitials: "NB", date: "Today, 09:00", complaint: "High fever and chills since yesterday",            clinician: "Dr. Mbi Alice",    unit: "Internal Medicine", diagnoses: 1, status: "Completed"   },
-  { id: "enc-003", patientId: "HIS-001236", patientName: "Fon Emmanuel",     patientInitials: "FE", date: "Today, 08:15", complaint: "Severe headache and blurred vision",              clinician: "Dr. Ekane Paul",   unit: "Neurology",        diagnoses: 0, status: "In Progress" },
-  { id: "enc-004", patientId: "HIS-001237", patientName: "Mbah Claudette",   patientInitials: "MC", date: "Yesterday, 14:45", complaint: "Persistent dry cough for 3 weeks",           clinician: "Dr. Mbi Alice",    unit: "Pulmonology",      diagnoses: 2, status: "Completed"   },
-  { id: "enc-005", patientId: "HIS-001238", patientName: "Tabi Innocent",    patientInitials: "TI", date: "Yesterday, 11:00", complaint: "Sharp abdominal pain after meals",           clinician: "Dr. Ekane Paul",   unit: "General Surgery",  diagnoses: 1, status: "Completed"   },
-  { id: "enc-006", patientId: "HIS-001239", patientName: "Ashu Grace",       patientInitials: "AG", date: "Yesterday, 09:30", complaint: "Routine ante-natal check-up, 28 weeks",     clinician: "Dr. Nkamla Rose",  unit: "Obstetrics",       diagnoses: 0, status: "Missed"      },
-  { id: "enc-007", patientId: "HIS-001234", patientName: "Ayuk Emmanuel",    patientInitials: "AE", date: "Oct 12, 2023",    complaint: "Severe chest pain, shortness of breath",      clinician: "Dr. Mbi Alice",    unit: "Emergency Dept.",  diagnoses: 3, status: "Completed"   },
-  { id: "enc-008", patientId: "HIS-001240", patientName: "Che Perpetua",     patientInitials: "CP", date: "Oct 11, 2023",    complaint: "Painful urination and lower back pain",       clinician: "Dr. Nkamla Rose",  unit: "Urology",          diagnoses: 1, status: "Completed"   },
-  { id: "enc-009", patientId: "HIS-001241", patientName: "Ndoh Francis",     patientInitials: "NF", date: "Oct 10, 2023",    complaint: "Follow-up for diabetic foot ulcer management", clinician: "Dr. Ekane Paul",   unit: "Internal Medicine", diagnoses: 2, status: "Missed"     },
-  { id: "enc-010", patientId: "HIS-001242", patientName: "Lum Adeline",      patientInitials: "LA", date: "Oct 09, 2023",    complaint: "Dizziness and shortness of breath on exertion", clinician: "Dr. Mbi Alice",  unit: "Cardiology",       diagnoses: 1, status: "Completed"   },
-]
+// ── Auth ──────────────────────────────────────────────────────
 
-// ── Metric cards ──────────────────────────────────────────────
+function authHeader() {
+  return { Authorization: `Bearer ${localStorage.getItem("his_id_token")}` }
+}
 
-const METRICS = [
-  {
-    label:   "Total This Week",
-    value:   24,
-    sub:     "+3 from last week",
-    icon:    Stethoscope,
-    iconCls: "text-primary",
-    bgCls:   "bg-primary/10",
-  },
-  {
-    label:   "Completed",
-    value:   18,
-    sub:     "75% completion rate",
-    icon:    CheckCircle,
-    iconCls: "text-[#10B981]",
-    bgCls:   "bg-[#10B981]/10",
-  },
-  {
-    label:   "In Progress",
-    value:   3,
-    sub:     "Active right now",
-    icon:    Clock,
-    iconCls: "text-[#F59E0B]",
-    bgCls:   "bg-[#F59E0B]/10",
-  },
-  {
-    label:   "Missed / No-show",
-    value:   3,
-    sub:     "Requires follow-up",
-    icon:    XCircle,
-    iconCls: "text-destructive",
-    bgCls:   "bg-destructive/10",
-  },
-]
+// ── Helpers ───────────────────────────────────────────────────
+
+function initials(name: string): string {
+  return name
+    .split(" ")
+    .filter(Boolean)
+    .slice(0, 2)
+    .map(w => w[0]?.toUpperCase() ?? "")
+    .join("")
+}
+
+function fmtDate(iso: string): string {
+  const d = new Date(iso)
+  const today = new Date()
+  const yesterday = new Date(today)
+  yesterday.setDate(today.getDate() - 1)
+
+  const sameDay = (a: Date, b: Date) =>
+    a.getFullYear() === b.getFullYear() &&
+    a.getMonth() === b.getMonth() &&
+    a.getDate() === b.getDate()
+
+  const time = d.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" })
+  if (sameDay(d, today)) return `Today, ${time}`
+  if (sameDay(d, yesterday)) return `Yesterday, ${time}`
+  return d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
+}
 
 // ── Status badge ──────────────────────────────────────────────
 
@@ -107,12 +98,12 @@ function StatusBadge({ status }: { status: EncStatus }) {
   )
 }
 
-// ── Page ──────────────────────────────────────────────────────
+// ── CSV export ─────────────────────────────────────────────────
 
 function exportCSV(rows: EncounterRow[]) {
   const header = ["Patient", "Patient ID", "Date", "Complaint", "Clinician", "Unit", "Diagnoses", "Status"]
   const lines  = rows.map(e =>
-    [e.patientName, e.patientId, e.date, `"${e.complaint}"`, e.clinician, e.unit, e.diagnoses, e.status].join(","),
+    [e.patientName, e.patientNumber, e.date, `"${e.complaint}"`, e.clinician, e.unit, e.diagnoses, e.status].join(","),
   )
   const blob = new Blob([[header.join(","), ...lines].join("\n")], { type: "text/csv" })
   const url  = URL.createObjectURL(blob)
@@ -123,18 +114,63 @@ function exportCSV(rows: EncounterRow[]) {
   URL.revokeObjectURL(url)
 }
 
-export function EncountersDashboardPage() {
-  const [search, setSearch] = useState("")
-  const [filter, setFilter] = useState<EncStatus | "All">("All")
-  const [page,   setPage]   = useState(1)
+// ── Page ──────────────────────────────────────────────────────
 
-  const filtered = ALL_ENCOUNTERS.filter(e => {
+export function EncountersDashboardPage() {
+  const [allRows,  setAllRows]  = useState<EncounterRow[]>([])
+  const [stats,    setStats]    = useState<Stats>({ total: 0, inProgress: 0, completed: 0, missed: 0 })
+  const [loading,  setLoading]  = useState(true)
+  const [error,    setError]    = useState<string | null>(null)
+  const [search,   setSearch]   = useState("")
+  const [filter,   setFilter]   = useState<EncStatus | "All">("All")
+  const [page,     setPage]     = useState(1)
+
+  useEffect(() => {
+    let cancelled = false
+    setLoading(true)
+    setError(null)
+
+    fetch(`${API_BASE}/encounters`, { headers: authHeader() })
+      .then(r => {
+        if (!r.ok) throw new Error(`HTTP ${r.status}`)
+        return r.json()
+      })
+      .then(data => {
+        if (cancelled) return
+        setStats(data.stats ?? { total: 0, inProgress: 0, completed: 0, missed: 0 })
+        setAllRows(
+          (data.encounters ?? []).map((e: Record<string, unknown>) => ({
+            id:              e.id as string,
+            patientId:       e.patientId as string,
+            patientNumber:   e.patientNumber as string,
+            patientName:     e.patientName as string,
+            patientInitials: initials(e.patientName as string),
+            date:            fmtDate(e.dateTime as string),
+            complaint:       e.presentingComplaint as string,
+            clinician:       (e.clinicianName as string) ?? "—",
+            unit:            e.clinicalUnit as string,
+            diagnoses:       Number(e.diagnosisCount ?? 0),
+            status:          (e.status as EncStatus) ?? "Completed",
+          })),
+        )
+      })
+      .catch(err => {
+        if (!cancelled) setError(err.message)
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false)
+      })
+
+    return () => { cancelled = true }
+  }, [])
+
+  const filtered = allRows.filter(e => {
     const matchStatus = filter === "All" || e.status === filter
     const q = search.toLowerCase()
     const matchSearch =
       !q ||
       e.patientName.toLowerCase().includes(q) ||
-      e.patientId.toLowerCase().includes(q) ||
+      e.patientNumber.toLowerCase().includes(q) ||
       e.complaint.toLowerCase().includes(q) ||
       e.clinician.toLowerCase().includes(q) ||
       e.unit.toLowerCase().includes(q)
@@ -144,6 +180,43 @@ export function EncountersDashboardPage() {
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
   const safePage   = Math.min(page, totalPages)
   const pageRows   = filtered.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE)
+
+  const completionPct = stats.total > 0 ? Math.round((stats.completed / stats.total) * 100) : 0
+
+  const METRICS = [
+    {
+      label:   "Total This Week",
+      value:   stats.total,
+      sub:     "Encounters this week",
+      icon:    Stethoscope,
+      iconCls: "text-primary",
+      bgCls:   "bg-primary/10",
+    },
+    {
+      label:   "Completed",
+      value:   stats.completed,
+      sub:     `${completionPct}% completion rate`,
+      icon:    CheckCircle,
+      iconCls: "text-[#10B981]",
+      bgCls:   "bg-[#10B981]/10",
+    },
+    {
+      label:   "In Progress",
+      value:   stats.inProgress,
+      sub:     "Active today",
+      icon:    Clock,
+      iconCls: "text-[#F59E0B]",
+      bgCls:   "bg-[#F59E0B]/10",
+    },
+    {
+      label:   "Missed / No-show",
+      value:   stats.missed,
+      sub:     "Requires follow-up",
+      icon:    XCircle,
+      iconCls: "text-destructive",
+      bgCls:   "bg-destructive/10",
+    },
+  ]
 
   return (
     <div className="space-y-6">
@@ -176,7 +249,9 @@ export function EncountersDashboardPage() {
             </div>
             <div>
               <p className="text-xs font-medium text-muted-foreground">{m.label}</p>
-              <p className="mt-0.5 text-3xl font-bold text-foreground">{m.value}</p>
+              <p className="mt-0.5 text-3xl font-bold text-foreground">
+                {loading ? "—" : m.value}
+              </p>
               <p className="mt-1 text-xs text-muted-foreground">{m.sub}</p>
             </div>
           </div>
@@ -216,7 +291,17 @@ export function EncountersDashboardPage() {
 
       {/* ── Encounters table ── */}
       <div className="overflow-hidden rounded-lg border border-border bg-card shadow-sm">
-        {filtered.length === 0 ? (
+        {loading ? (
+          <div className="flex min-h-48 flex-col items-center justify-center gap-3">
+            <Activity size={40} className="animate-pulse text-muted-foreground/30" />
+            <p className="text-sm text-muted-foreground">Loading encounters…</p>
+          </div>
+        ) : error ? (
+          <div className="flex min-h-48 flex-col items-center justify-center gap-3">
+            <AlertTriangle size={40} className="text-destructive/40" />
+            <p className="text-sm text-muted-foreground">Failed to load encounters. {error}</p>
+          </div>
+        ) : filtered.length === 0 ? (
           <div className="flex min-h-48 flex-col items-center justify-center gap-3">
             <Activity size={40} className="text-muted-foreground/30" />
             <p className="text-sm text-muted-foreground">No encounters match your search.</p>
@@ -240,10 +325,7 @@ export function EncountersDashboardPage() {
               </thead>
               <tbody className="divide-y divide-border">
                 {pageRows.map(enc => (
-                  <tr
-                    key={enc.id}
-                    className="group transition-colors hover:bg-muted/40"
-                  >
+                  <tr key={enc.id} className="group transition-colors hover:bg-muted/40">
                     {/* Patient */}
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-2.5">
@@ -252,7 +334,7 @@ export function EncountersDashboardPage() {
                         </div>
                         <div>
                           <p className="text-sm font-medium text-foreground">{enc.patientName}</p>
-                          <p className="text-xs text-muted-foreground">{enc.patientId}</p>
+                          <p className="text-xs text-muted-foreground">{enc.patientNumber}</p>
                         </div>
                       </div>
                     </td>
@@ -305,32 +387,34 @@ export function EncountersDashboardPage() {
       </div>
 
       {/* Pagination */}
-      <div className="flex items-center justify-between border-t border-border pt-3">
-        <p className="text-xs text-muted-foreground">
-          Showing {filtered.length === 0 ? 0 : (safePage - 1) * PAGE_SIZE + 1}–{Math.min(safePage * PAGE_SIZE, filtered.length)} of {filtered.length} encounters
-        </p>
-        <div className="flex items-center gap-1">
-          <button
-            type="button"
-            onClick={() => setPage(p => Math.max(1, p - 1))}
-            disabled={safePage <= 1}
-            className="flex items-center gap-1 rounded-md border border-border px-3 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground disabled:pointer-events-none disabled:opacity-40"
-          >
-            <ChevronLeft size={14} /> Previous
-          </button>
-          <span className="min-w-16 text-center text-xs text-muted-foreground">
-            Page {safePage} of {totalPages}
-          </span>
-          <button
-            type="button"
-            onClick={() => setPage(p => Math.min(totalPages, p + 1))}
-            disabled={safePage >= totalPages}
-            className="flex items-center gap-1 rounded-md border border-border px-3 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground disabled:pointer-events-none disabled:opacity-40"
-          >
-            Next <ChevronRight size={14} />
-          </button>
+      {!loading && !error && (
+        <div className="flex items-center justify-between border-t border-border pt-3">
+          <p className="text-xs text-muted-foreground">
+            Showing {filtered.length === 0 ? 0 : (safePage - 1) * PAGE_SIZE + 1}–{Math.min(safePage * PAGE_SIZE, filtered.length)} of {filtered.length} encounters
+          </p>
+          <div className="flex items-center gap-1">
+            <button
+              type="button"
+              onClick={() => setPage(p => Math.max(1, p - 1))}
+              disabled={safePage <= 1}
+              className="flex items-center gap-1 rounded-md border border-border px-3 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground disabled:pointer-events-none disabled:opacity-40"
+            >
+              <ChevronLeft size={14} /> Previous
+            </button>
+            <span className="min-w-16 text-center text-xs text-muted-foreground">
+              Page {safePage} of {totalPages}
+            </span>
+            <button
+              type="button"
+              onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+              disabled={safePage >= totalPages}
+              className="flex items-center gap-1 rounded-md border border-border px-3 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground disabled:pointer-events-none disabled:opacity-40"
+            >
+              Next <ChevronRight size={14} />
+            </button>
+          </div>
         </div>
-      </div>
+      )}
     </div>
   )
 }

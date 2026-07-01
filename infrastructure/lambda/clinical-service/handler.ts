@@ -24,6 +24,7 @@ export const handler = async (event: APIGatewayProxyEventV2) => {
   const logger    = createLogger({ functionName: 'his-clinical-service', requestId });
 
   // Expected paths:
+  // /encounters                              ← facility-wide list
   // /patients/{pid}/encounters
   // /patients/{pid}/encounters/{eid}
   // /patients/{pid}/encounters/{eid}/diagnoses
@@ -31,6 +32,113 @@ export const handler = async (event: APIGatewayProxyEventV2) => {
   // /patients/{pid}/encounters/{eid}/prescriptions
   // /patients/{pid}/encounters/{eid}/lab-requests
   const segments = rawPath.split('/').filter(Boolean);
+
+  // ── GET /encounters (facility-wide list for admin encounters dashboard) ───────
+  if (method === 'GET' && segments[0] === 'encounters' && segments.length === 1) {
+    try {
+      const pool   = await getDbPool();
+      const claims = getClaims(event);
+      const { userId, hospitalId } = claims;
+
+      await requirePermission(pool, userId, hospitalId, 'encounter:read');
+
+      const qp     = event.queryStringParameters ?? {};
+      const status = (qp['status'] ?? '') as string;
+      const search = (qp['search'] ?? '') as string;
+
+      // Stat counts for the current ISO week
+      const statsRes = await pool.query(
+        `SELECT
+           COUNT(*)                                                                     AS total,
+           COUNT(*) FILTER (WHERE DATE(e.date_time AT TIME ZONE 'UTC') = CURRENT_DATE) AS in_progress,
+           COUNT(*) FILTER (WHERE DATE(e.date_time AT TIME ZONE 'UTC') < CURRENT_DATE) AS completed
+         FROM encounters e
+         WHERE e.hospital_id = $1
+           AND e.date_time >= date_trunc('week', NOW())`,
+        [hospitalId],
+      );
+      const stats = statsRes.rows[0];
+
+      // Status is derived (no column): today = In Progress, past = Completed
+      const derivedStatus = `CASE WHEN DATE(e.date_time AT TIME ZONE 'UTC') = CURRENT_DATE THEN 'In Progress' ELSE 'Completed' END`;
+
+      const conditions: string[] = ['e.hospital_id = $1'];
+      const params: unknown[]    = [hospitalId];
+      let   idx                  = 2;
+
+      if (status && status !== 'All') {
+        if (status === 'In Progress') {
+          conditions.push(`DATE(e.date_time AT TIME ZONE 'UTC') = CURRENT_DATE`);
+        } else if (status === 'Completed') {
+          conditions.push(`DATE(e.date_time AT TIME ZONE 'UTC') < CURRENT_DATE`);
+        }
+      }
+
+      if (search) {
+        conditions.push(
+          `(p.full_name ILIKE $${idx} OR u.full_name ILIKE $${idx} OR e.clinical_unit ILIKE $${idx} OR e.presenting_complaint ILIKE $${idx})`,
+        );
+        params.push(`%${search}%`);
+        idx++;
+      }
+
+      const where = conditions.join(' AND ');
+
+      const res = await pool.query(
+        `SELECT e.id,
+                e.date_time,
+                e.clinical_unit,
+                e.presenting_complaint,
+                p.full_name        AS patient_name,
+                p.patient_number   AS patient_number,
+                p.id               AS patient_id,
+                u.full_name        AS clinician_name,
+                COUNT(DISTINCT d.id) AS diagnosis_count,
+                ${derivedStatus}   AS status
+         FROM encounters e
+         JOIN patients p ON p.id = e.patient_id
+         LEFT JOIN users u ON u.id = e.staff_id
+         LEFT JOIN diagnoses d ON d.encounter_id = e.id
+         WHERE ${where}
+         GROUP BY e.id, p.full_name, p.patient_number, p.id, u.full_name
+         ORDER BY e.date_time DESC
+         LIMIT 100`,
+        params,
+      );
+
+      await writeAuditLog(pool, {
+        userId, hospitalId, patientId: hospitalId,
+        actionType: 'READ', resourceType: 'encounter_list', resourceId: hospitalId, ipAddress: ip,
+      });
+
+      logger.info('GET /encounters', userId, hospitalId, { count: res.rows.length });
+      return ok({
+        stats: {
+          total:      Number(stats.total),
+          inProgress: Number(stats.in_progress),
+          completed:  Number(stats.completed),
+          missed:     0,
+        },
+        encounters: res.rows.map((e) => ({
+          id:                  e.id,
+          dateTime:            e.date_time,
+          clinicalUnit:        e.clinical_unit,
+          presentingComplaint: e.presenting_complaint,
+          patientName:         e.patient_name,
+          patientNumber:       e.patient_number,
+          patientId:           e.patient_id,
+          clinicianName:       e.clinician_name,
+          diagnosisCount:      Number(e.diagnosis_count),
+          status:              e.status as string,
+        })),
+      });
+    } catch (err: unknown) {
+      const errMsg = err instanceof Error ? err.message : String(err);
+      console.error(JSON.stringify({ level: 'ERROR', requestId, message: errMsg }));
+      if (err instanceof Error && (err as Error & { statusCode?: number }).statusCode === 403) return forbidden();
+      return serverError();
+    }
+  }
 
   if (segments[0] !== 'patients' || segments[2] !== 'encounters') return notFound();
   const patientId = segments[1];

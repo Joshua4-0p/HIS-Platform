@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { Link } from "react-router-dom"
 import {
   AlertTriangle,
@@ -12,9 +12,14 @@ import {
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 
+const API_BASE = "https://hvwwgec7n2.execute-api.us-east-1.amazonaws.com"
 const PAGE_SIZE = 5
 
-// ── Types ──────────────────────────────────────────────────────────────
+function authHeader(): HeadersInit {
+  return { Authorization: `Bearer ${localStorage.getItem("his_id_token") ?? ""}` }
+}
+
+// ── Types ───────────────────────────────────────────────────────────────
 
 type LabUrgency = "Routine" | "Urgent"
 type LabStatus  = "Pending" | "Completed"
@@ -23,36 +28,20 @@ interface LabRequest {
   id: string
   patientId: string
   patientName: string
+  patientNumber: string
   requestTime: string
   testName: string
   requestedBy: string
   urgency: LabUrgency
   status: LabStatus
-  resultId?: string
+  resultId?: string | null
 }
 
-// ── Mock data ───────────────────────────────────────────────────────────
-
-export const MOCK_REQUESTS: LabRequest[] = [
-  { id: "req-001", patientId: "HIS-001234", patientName: "Ayuk Emmanuel",    requestTime: "Today, 08:30",     testName: "Malaria RDT",           requestedBy: "Dr. Ekane Paul",  urgency: "Urgent",  status: "Pending" },
-  { id: "req-002", patientId: "HIS-001235", patientName: "Nkeng Bernadette", requestTime: "Today, 09:15",     testName: "Full Blood Count",       requestedBy: "Dr. Mbi Alice",   urgency: "Routine", status: "Pending" },
-  { id: "req-003", patientId: "HIS-001236", patientName: "Fon Emmanuel",     requestTime: "Today, 10:00",     testName: "Fasting Blood Glucose",  requestedBy: "Dr. Ekane Paul",  urgency: "Urgent",  status: "Pending" },
-  { id: "req-004", patientId: "HIS-001237", patientName: "Mbah Claudette",   requestTime: "Today, 10:30",     testName: "Liver Function Test",    requestedBy: "Dr. Mbi Alice",   urgency: "Routine", status: "Pending" },
-  { id: "req-005", patientId: "HIS-001238", patientName: "Tabi Innocent",    requestTime: "Today, 11:00",     testName: "Creatinine",             requestedBy: "Dr. Ekane Paul",  urgency: "Routine", status: "Pending" },
-  { id: "req-006", patientId: "HIS-001234", patientName: "Ayuk Emmanuel",    requestTime: "Yesterday, 14:00", testName: "HbA1c",                  requestedBy: "Dr. Ekane Paul",  urgency: "Routine", status: "Completed", resultId: "res-001" },
-  { id: "req-007", patientId: "HIS-001239", patientName: "Ashu Grace",       requestTime: "Yesterday, 15:30", testName: "Full Blood Count",       requestedBy: "Dr. Nkamla Rose", urgency: "Urgent",  status: "Completed", resultId: "res-002" },
-  { id: "req-008", patientId: "HIS-001240", patientName: "Che Perpetua",     requestTime: "Yesterday, 16:00", testName: "Malaria RDT",            requestedBy: "Dr. Mbi Alice",   urgency: "Urgent",  status: "Completed", resultId: "res-003" },
-  { id: "req-009", patientId: "HIS-001241", patientName: "Ndoh Francis",     requestTime: "Oct 10, 2023",     testName: "Creatinine",             requestedBy: "Dr. Ekane Paul",  urgency: "Routine", status: "Completed", resultId: "res-004" },
-  { id: "req-010", patientId: "HIS-001242", patientName: "Lum Adeline",      requestTime: "Oct 09, 2023",     testName: "Fasting Blood Glucose",  requestedBy: "Dr. Mbi Alice",   urgency: "Routine", status: "Completed", resultId: "res-005" },
-]
-
-// ── Derived stats ───────────────────────────────────────────────────────
-
-const LAB_STATS = {
-  total:     MOCK_REQUESTS.length,
-  pending:   MOCK_REQUESTS.filter(r => r.status === "Pending").length,
-  completed: MOCK_REQUESTS.filter(r => r.status === "Completed").length,
-  urgent:    MOCK_REQUESTS.filter(r => r.urgency === "Urgent").length,
+interface QueueStats {
+  total: number
+  pending: number
+  completed: number
+  urgent: number
 }
 
 // ── Stat card ────────────────────────────────────────────────────────────
@@ -84,17 +73,15 @@ function exportCsv(rows: LabRequest[], filename: string) {
   const lines = [
     headers.join(","),
     ...rows.map(r =>
-      [r.requestTime, r.patientName, r.patientId, r.testName, r.requestedBy, r.urgency, r.status]
-        .map(v => `"${v.replace(/"/g, '""')}"`)
+      [r.requestTime, r.patientName, r.patientNumber, r.testName, r.requestedBy, r.urgency, r.status]
+        .map(v => `"${String(v).replace(/"/g, '""')}"`)
         .join(",")
     ),
   ]
   const blob = new Blob([lines.join("\n")], { type: "text/csv" })
   const url = URL.createObjectURL(blob)
   const a = document.createElement("a")
-  a.href = url
-  a.download = filename
-  a.click()
+  a.href = url; a.download = filename; a.click()
   URL.revokeObjectURL(url)
 }
 
@@ -131,18 +118,34 @@ function StatusBadge({ status }: { status: LabStatus }) {
 // ── Page ────────────────────────────────────────────────────────────────
 
 export function LabWorkQueuePage() {
-  const [filter, setFilter] = useState<LabStatus | "All">("All")
-  const [search, setSearch] = useState("")
-  const [page,   setPage]   = useState(1)
+  const [requests, setRequests] = useState<LabRequest[]>([])
+  const [stats,    setStats]    = useState<QueueStats>({ total: 0, pending: 0, completed: 0, urgent: 0 })
+  const [loading,  setLoading]  = useState(true)
+  const [error,    setError]    = useState<string | null>(null)
+  const [filter,   setFilter]   = useState<LabStatus | "All">("All")
+  const [search,   setSearch]   = useState("")
+  const [page,     setPage]     = useState(1)
 
-  const filtered = MOCK_REQUESTS.filter(r => {
+  useEffect(() => {
+    setLoading(true)
+    fetch(`${API_BASE}/laboratory/queue`, { headers: authHeader() })
+      .then(r => r.json())
+      .then((data: { stats: QueueStats; requests: LabRequest[] }) => {
+        setStats(data.stats ?? { total: 0, pending: 0, completed: 0, urgent: 0 })
+        setRequests(data.requests ?? [])
+      })
+      .catch(() => setError("Failed to load lab work queue."))
+      .finally(() => setLoading(false))
+  }, [])
+
+  const filtered = requests.filter(r => {
     const matchStatus = filter === "All" || r.status === filter
     const q = search.toLowerCase()
     const matchSearch =
       !q ||
       r.patientName.toLowerCase().includes(q) ||
       r.testName.toLowerCase().includes(q) ||
-      r.patientId.toLowerCase().includes(q) ||
+      (r.patientNumber ?? "").toLowerCase().includes(q) ||
       r.requestedBy.toLowerCase().includes(q)
     return matchStatus && matchSearch
   })
@@ -153,7 +156,6 @@ export function LabWorkQueuePage() {
 
   return (
     <div className="space-y-6">
-      {/* Page header */}
       <div>
         <h1 className="text-2xl font-semibold text-foreground">Lab Work Queue</h1>
         <p className="mt-1 text-sm text-muted-foreground">
@@ -161,21 +163,18 @@ export function LabWorkQueuePage() {
         </p>
       </div>
 
-      {/* Stat cards */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <StatCard label="Total Requests" value={LAB_STATS.total} subtext="All lab test requests"
+        <StatCard label="Total Requests" value={stats.total} subtext="All lab test requests"
           icon={<FlaskConical size={20} className="text-primary" />} iconBg="bg-primary/10" />
-        <StatCard label="Pending" value={LAB_STATS.pending} subtext="Awaiting results"
+        <StatCard label="Pending" value={stats.pending} subtext="Awaiting results"
           icon={<Clock size={20} className="text-[#F59E0B]" />} iconBg="bg-[#F59E0B]/10" />
-        <StatCard label="Completed" value={LAB_STATS.completed} subtext="Results entered"
+        <StatCard label="Completed" value={stats.completed} subtext="Results entered"
           icon={<CheckCircle size={20} className="text-[#10B981]" />} iconBg="bg-[#10B981]/10" />
-        <StatCard label="Urgent Tests" value={LAB_STATS.urgent} subtext="Requires priority attention"
+        <StatCard label="Urgent Tests" value={stats.urgent} subtext="Requires priority attention"
           icon={<AlertTriangle size={20} className="text-destructive" />} iconBg="bg-destructive/10" />
       </div>
 
-      {/* Controls row */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        {/* Segmented filter */}
         <div className="inline-flex rounded-lg bg-muted p-1">
           {(["All", "Pending", "Completed"] as const).map(f => (
             <button
@@ -194,7 +193,6 @@ export function LabWorkQueuePage() {
           ))}
         </div>
 
-        {/* Right: search + export */}
         <div className="flex items-center gap-2">
           <div className="relative w-full sm:w-72">
             <Search size={15} className="pointer-events-none absolute left-3 top-2.5 text-muted-foreground" />
@@ -216,9 +214,17 @@ export function LabWorkQueuePage() {
         </div>
       </div>
 
-      {/* Table card */}
       <div className="overflow-hidden rounded-lg border border-border bg-card shadow-sm">
-        {pageRows.length === 0 ? (
+        {loading ? (
+          <div className="flex min-h-48 flex-col items-center justify-center gap-3">
+            <FlaskConical size={40} className="animate-pulse text-muted-foreground/30" />
+            <p className="text-sm text-muted-foreground">Loading lab queue...</p>
+          </div>
+        ) : error ? (
+          <div className="flex min-h-48 flex-col items-center justify-center gap-3">
+            <p className="text-sm text-destructive">{error}</p>
+          </div>
+        ) : pageRows.length === 0 ? (
           <div className="flex min-h-48 flex-col items-center justify-center gap-3">
             <FlaskConical size={40} className="text-muted-foreground/30" />
             <p className="text-sm text-muted-foreground">No lab tests match your search.</p>
@@ -240,9 +246,11 @@ export function LabWorkQueuePage() {
               <tbody className="divide-y divide-border">
                 {pageRows.map(req => (
                   <tr key={req.id} className="transition-colors hover:bg-muted/40">
-                    <td className="whitespace-nowrap px-4 py-3 text-sm text-muted-foreground">{req.requestTime}</td>
+                    <td className="whitespace-nowrap px-4 py-3 text-sm text-muted-foreground">
+                      {new Date(req.requestTime).toLocaleString()}
+                    </td>
                     <td className="whitespace-nowrap px-4 py-3 text-sm font-medium text-foreground">{req.patientName}</td>
-                    <td className="whitespace-nowrap px-4 py-3 text-sm text-muted-foreground">{req.patientId}</td>
+                    <td className="whitespace-nowrap px-4 py-3 text-sm text-muted-foreground">{req.patientNumber}</td>
                     <td className="whitespace-nowrap px-4 py-3 text-sm text-foreground">{req.testName}</td>
                     <td className="whitespace-nowrap px-4 py-3 text-sm text-muted-foreground">{req.requestedBy}</td>
                     <td className="px-4 py-3"><UrgencyBadge urgency={req.urgency} /></td>
@@ -272,7 +280,6 @@ export function LabWorkQueuePage() {
         )}
       </div>
 
-      {/* Pagination */}
       <div className="flex items-center justify-between border-t border-border pt-3">
         <p className="text-xs text-muted-foreground">
           Showing {filtered.length === 0 ? 0 : (safePage - 1) * PAGE_SIZE + 1}–{Math.min(safePage * PAGE_SIZE, filtered.length)} of {filtered.length} requests

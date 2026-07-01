@@ -414,6 +414,70 @@ export const handler = async (event: APIGatewayProxyEventV2) => {
       return ok({ deactivated: true, patientId, name: check.rows[0].full_name });
     }
 
+    // ── GET /patients/{id}/amendments ────────────────────────────────────────
+    if (method === 'GET' && segments.length === 3 && segments[2] === 'amendments') {
+      await requirePermission(pool, userId, hospitalId, 'patient:read');
+
+      const check = await pool.query(
+        'SELECT id FROM patients WHERE id = $1 AND hospital_id = $2',
+        [patientId, hospitalId],
+      );
+      if (check.rows.length === 0) return notFound('Patient not found.');
+
+      // Amendments are linked to records, not patients directly, so we resolve
+      // each record type back to the patient via its owning table.
+      const res = await pool.query(
+        `SELECT ra.id,
+                ra.original_record_type,
+                ra.original_record_id,
+                ra.amendment_reason,
+                ra.original_data,
+                ra.amended_data,
+                ra.created_at,
+                u.full_name AS amended_by_name
+         FROM record_amendments ra
+         JOIN users u ON u.id = ra.amended_by
+         WHERE ra.hospital_id = $1
+           AND (
+             (ra.original_record_type = 'encounter'    AND ra.original_record_id IN (
+               SELECT id FROM encounters WHERE patient_id = $2 AND hospital_id = $1))
+             OR (ra.original_record_type = 'diagnosis'  AND ra.original_record_id IN (
+               SELECT d.id FROM diagnoses d
+               JOIN encounters e ON e.id = d.encounter_id
+               WHERE e.patient_id = $2 AND e.hospital_id = $1))
+             OR (ra.original_record_type = 'vital_signs' AND ra.original_record_id IN (
+               SELECT vs.id FROM vital_signs vs
+               JOIN encounters e ON e.id = vs.encounter_id
+               WHERE e.patient_id = $2 AND e.hospital_id = $1))
+             OR (ra.original_record_type = 'prescription' AND ra.original_record_id IN (
+               SELECT id FROM prescriptions WHERE patient_id = $2 AND hospital_id = $1))
+             OR (ra.original_record_type = 'lab_result' AND ra.original_record_id IN (
+               SELECT id FROM lab_results WHERE patient_id = $2 AND hospital_id = $1))
+           )
+         ORDER BY ra.created_at DESC`,
+        [hospitalId, patientId],
+      );
+
+      await writeAuditLog(pool, {
+        userId, hospitalId, patientId,
+        actionType: 'READ', resourceType: 'patient_amendments', resourceId: patientId, ipAddress: ip,
+      });
+
+      logger.info('GET /patients/:id/amendments', userId, hospitalId, { patientId, count: res.rows.length });
+      return ok({
+        amendments: res.rows.map((a) => ({
+          id:                 a.id,
+          recordType:         a.original_record_type,
+          recordId:           a.original_record_id,
+          amendedBy:          a.amended_by_name,
+          reason:             a.amendment_reason,
+          originalData:       a.original_data,
+          amendedData:        a.amended_data,
+          createdAt:          a.created_at,
+        })),
+      });
+    }
+
     // ── POST /patients/{id}/amend/{recordType}/{recordId} ────────────────────
     if (method === 'POST' && segments.length === 5 && segments[2] === 'amend') {
       await requirePermission(pool, userId, hospitalId, 'patient:amend');

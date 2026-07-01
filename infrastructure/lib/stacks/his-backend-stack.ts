@@ -488,7 +488,8 @@ export class HisBackendStack extends cdk.Stack {
       { routePath: '/patients/{id}/consent',                       methods: [apigw2.HttpMethod.PUT] },
       { routePath: '/patients/{id}/deactivate',                    methods: [apigw2.HttpMethod.POST] },
       { routePath: '/patients/{id}/amend/{recordType}/{recordId}', methods: [apigw2.HttpMethod.POST] },
-      { routePath: '/users/me/permissions',                        methods: [apigw2.HttpMethod.GET] },
+      { routePath: '/patients/{id}/amendments',                   methods: [apigw2.HttpMethod.GET] },
+      { routePath: '/users/me/permissions',                       methods: [apigw2.HttpMethod.GET] },
     ]) {
       this.httpApi.addRoutes({
         path:        routePath,
@@ -613,6 +614,7 @@ export class HisBackendStack extends cdk.Stack {
     );
 
     for (const { routePath, methods } of [
+      { routePath: '/encounters',                                   methods: [apigw2.HttpMethod.GET] },
       { routePath: '/patients/{id}/encounters',                     methods: [apigw2.HttpMethod.GET, apigw2.HttpMethod.POST] },
       { routePath: '/patients/{id}/encounters/{eid}',               methods: [apigw2.HttpMethod.GET] },
       { routePath: '/patients/{id}/encounters/{eid}/diagnoses',     methods: [apigw2.HttpMethod.POST] },
@@ -629,7 +631,81 @@ export class HisBackendStack extends cdk.Stack {
     }
 
     // =========================================================================
-    // 11. Stack Outputs
+    // 11. Phase 11: lab-service Lambda (VPC-bound, 5 routes)
+    // Lab work queue, result entry, result detail, versioned correction.
+    // REQ-F-039: lab_test_requests work queue
+    // REQ-F-040: reference range validation (normal/abnormal/critical)
+    // REQ-F-041: critical alert via SNS + in-app notifications within 60s
+    // REQ-F-025: versioned corrections - INSERT new row, supersede original
+    // REQ-F-068: audit log on every read/write of patient lab data
+    // =========================================================================
+    const labServiceRole = new iam.Role(this, 'LabServiceRole', {
+      roleName:  'his-lab-service-role',
+      assumedBy: new iam.ServicePrincipal('lambda.amazonaws.com'),
+      managedPolicies: [
+        iam.ManagedPolicy.fromAwsManagedPolicyName('service-role/AWSLambdaVPCAccessExecutionRole'),
+      ],
+    });
+
+    labServiceRole.addToPolicy(new iam.PolicyStatement({
+      effect:    iam.Effect.ALLOW,
+      actions:   ['rds-db:connect'],
+      resources: [`arn:aws:rds-db:${this.region}:${account}:dbuser:*/his_app`],
+    }));
+
+    labServiceRole.addToPolicy(new iam.PolicyStatement({
+      effect:    iam.Effect.ALLOW,
+      actions:   ['sns:Publish'],
+      resources: [this.criticalLabAlertsTopic.topicArn],
+    }));
+
+    const labServiceFn = new nodejs.NodejsFunction(this, 'LabServiceFn', {
+      functionName: 'his-lab-service',
+      entry:        path.join(__dirname, '../../lambda/lab-service/handler.ts'),
+      runtime:      lambda.Runtime.NODEJS_20_X,
+      handler:      'handler',
+      role:         labServiceRole,
+      timeout:      cdk.Duration.seconds(30),
+      memorySize:   512,
+      // reservedConcurrentExecutions: 200 -- REQ-NF-021; raise Service Quotas for production
+      vpc:          props.vpcStack.vpc,
+      vpcSubnets:   { subnetType: ec2.SubnetType.PRIVATE_ISOLATED },
+      securityGroups: [props.vpcStack.lambdaSg],
+      environment: {
+        RDS_HOSTNAME:                   props.databaseStack.rdsInstance.dbInstanceEndpointAddress,
+        RDS_PORT:                       props.databaseStack.rdsInstance.dbInstanceEndpointPort,
+        RDS_DB_NAME:                    'hisdb',
+        CRITICAL_LAB_ALERTS_TOPIC_ARN:  this.criticalLabAlertsTopic.topicArn,
+      },
+      bundling: {
+        minify:          true,
+        sourceMap:       false,
+        externalModules: ['@aws-sdk/*'],
+      },
+    });
+
+    const labIntegration = new apigw2Integrations.HttpLambdaIntegration(
+      'LabIntegration',
+      labServiceFn,
+    );
+
+    for (const { routePath, methods } of [
+      { routePath: '/laboratory/queue',               methods: [apigw2.HttpMethod.GET] },
+      { routePath: '/laboratory/requests/{id}',       methods: [apigw2.HttpMethod.GET] },
+      { routePath: '/laboratory/results',             methods: [apigw2.HttpMethod.POST] },
+      { routePath: '/laboratory/results/{id}',        methods: [apigw2.HttpMethod.GET] },
+      { routePath: '/laboratory/results/{id}/correct', methods: [apigw2.HttpMethod.PUT] },
+    ]) {
+      this.httpApi.addRoutes({
+        path:        routePath,
+        methods,
+        integration: labIntegration,
+        authorizer:  this.cognitoAuthorizer,
+      });
+    }
+
+    // =========================================================================
+    // 12. Stack Outputs
     // =========================================================================
     new cdk.CfnOutput(this, 'ApiGatewayUrl', {
       value:      this.httpApi.apiEndpoint,

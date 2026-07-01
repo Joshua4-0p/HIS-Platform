@@ -79,38 +79,27 @@ export class HisVpcStack extends cdk.Stack {
     new ec2.InterfaceVpcEndpoint(this, 'HisSnsInterfaceEndpoint', {
       vpc: this.vpc,
       service: ec2.InterfaceVpcEndpointAwsService.SNS,
-      subnets: {
-        subnetType: ec2.SubnetType.PRIVATE_ISOLATED,
-        availabilityZones: ['us-east-1a'],
-      },
+      subnets: { subnetType: ec2.SubnetType.PRIVATE_ISOLATED },
       privateDnsEnabled: true,
       securityGroups: [this.lambdaSg],
     });
 
-    // Secrets Manager VPC Interface Endpoint (~$7.20/month single-AZ)
+    // Secrets Manager VPC Interface Endpoint
     // Required by migration-runner Lambda for GetSecretValueCommand (DB credentials).
-    // Without this endpoint, migrations cannot run in private isolated subnets.
     new ec2.InterfaceVpcEndpoint(this, 'HisSecretsManagerEndpoint', {
       vpc: this.vpc,
       service: ec2.InterfaceVpcEndpointAwsService.SECRETS_MANAGER,
-      subnets: {
-        subnetType: ec2.SubnetType.PRIVATE_ISOLATED,
-        availabilityZones: ['us-east-1a'],
-      },
+      subnets: { subnetType: ec2.SubnetType.PRIVATE_ISOLATED },
       privateDnsEnabled: true,
       securityGroups: [this.lambdaSg],
     });
 
-    // Cognito User Pools VPC Interface Endpoint (~$7.20/month single-AZ)
+    // Cognito User Pools VPC Interface Endpoint
     // Required by hospital-service Lambda (Phase 7) for AdminCreateUser/DisableUser/EnableUser.
-    // Lambda SG already allows 443 to VPC CIDR; private DNS resolves to this endpoint IP.
     new ec2.InterfaceVpcEndpoint(this, 'HisCognitoEndpoint', {
       vpc: this.vpc,
       service: ec2.InterfaceVpcEndpointAwsService.COGNITO_IDP,
-      subnets: {
-        subnetType: ec2.SubnetType.PRIVATE_ISOLATED,
-        availabilityZones: ['us-east-1a'],
-      },
+      subnets: { subnetType: ec2.SubnetType.PRIVATE_ISOLATED },
       privateDnsEnabled: true,
       securityGroups: [this.lambdaSg],
     });

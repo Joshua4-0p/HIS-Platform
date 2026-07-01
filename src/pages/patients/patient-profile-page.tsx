@@ -52,6 +52,15 @@ type TabId =
   | "Amendments"
 type LabUrgency = "Routine" | "Urgent"
 
+interface AmendmentRow {
+  id: string
+  recordType: string
+  recordId: string
+  amendedBy: string
+  reason: string
+  createdAt: string
+}
+
 const TABS: TabId[] = [
   "Timeline",
   "Encounters",
@@ -741,6 +750,37 @@ export function PatientProfilePage() {
       .catch(() => {})
   }, [id])
 
+  const [amendments,        setAmendments]        = useState<AmendmentRow[]>([])
+  const [amendmentsLoading, setAmendmentsLoading] = useState(false)
+  const [amendmentsLoaded,  setAmendmentsLoaded]  = useState(false)
+
+  useEffect(() => {
+    if (activeTab !== "Amendments" || !id || amendmentsLoaded) return
+    setAmendmentsLoading(true)
+    const token = localStorage.getItem("his_id_token")
+    fetch(`${API_BASE}/patients/${id}/amendments`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then(r => r.json())
+      .then(data => {
+        if (Array.isArray(data.amendments)) {
+          setAmendments(
+            data.amendments.map((a: Record<string, unknown>) => ({
+              id:         a.id as string,
+              recordType: a.recordType as string,
+              recordId:   a.recordId as string,
+              amendedBy:  a.amendedBy as string,
+              reason:     a.reason as string,
+              createdAt:  a.createdAt as string,
+            })),
+          )
+        }
+        setAmendmentsLoaded(true)
+      })
+      .catch(() => {})
+      .finally(() => setAmendmentsLoading(false))
+  }, [id, activeTab, amendmentsLoaded])
+
   const encRows       = encounters.length > 0 ? encounters : MOCK_ENCOUNTERS
   const encTotalPages = Math.max(1, Math.ceil(encRows.length / ENC_PAGE_SIZE))
   const encStart      = (encPage - 1) * ENC_PAGE_SIZE
@@ -1169,10 +1209,36 @@ export function PatientProfilePage() {
           {activeTab === "Amendments" && (
             <div className="p-6">
               <h3 className="mb-6 text-lg font-semibold text-foreground">Amendments</h3>
-              <div className="flex min-h-48 flex-col items-center justify-center gap-3 rounded-lg border border-dashed border-border">
-                <Activity size={40} className="text-muted-foreground/30" />
-                <p className="text-sm text-muted-foreground">No amendments have been recorded for this patient.</p>
-              </div>
+              {amendmentsLoading ? (
+                <div className="flex min-h-48 flex-col items-center justify-center gap-3">
+                  <Activity size={40} className="animate-pulse text-muted-foreground/30" />
+                  <p className="text-sm text-muted-foreground">Loading amendments…</p>
+                </div>
+              ) : amendments.length === 0 ? (
+                <div className="flex min-h-48 flex-col items-center justify-center gap-3 rounded-lg border border-dashed border-border">
+                  <Activity size={40} className="text-muted-foreground/30" />
+                  <p className="text-sm text-muted-foreground">No amendments have been recorded for this patient.</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {amendments.map((a) => (
+                    <div key={a.id} className="rounded-lg border border-border bg-muted/30 p-4">
+                      <div className="flex items-start justify-between gap-2">
+                        <div>
+                          <p className="text-sm font-medium capitalize text-foreground">
+                            {a.recordType.replace(/_/g, " ")} amendment
+                          </p>
+                          <p className="mt-1 text-sm text-muted-foreground">{a.reason}</p>
+                        </div>
+                        <p className="shrink-0 text-xs text-muted-foreground">
+                          {new Date(a.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+                        </p>
+                      </div>
+                      <p className="mt-2 text-xs text-muted-foreground">Amended by {a.amendedBy}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           )}
         </div>
